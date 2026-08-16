@@ -47,16 +47,20 @@ export async function GET(request: Request) {
     conditions.push(sql`${users.role} = ANY(string_to_array(${myLookingFor.join(",")}, ${","}))`);
   }
 
+  // Берём расширенный пул, затем учитываем VIP entitlement, который хранится
+  // в журнале покупок. Это даёт VIP-анкетам заметно более частый показ.
   const rows = await db
     .select()
     .from(users)
     .where(and(...conditions, notInArray(users.tgId, reacted)))
-    // VIP сейчас совпадает с админ-entitlement. Сначала VIP, внутри группы — MMR.
-    // Когда подключим покупку VIP, сюда подставится отдельный persisted VIP-флаг.
-    .orderBy(desc(users.isAdmin), desc(users.mmr))
-    .limit(30);
+    .orderBy(desc(users.mmr))
+    .limit(80);
 
-  return NextResponse.json({
-    profiles: await Promise.all(rows.map(toRatedPublicProfile)),
+  const profiles = await Promise.all(rows.map(toRatedPublicProfile));
+  profiles.sort((a, b) => {
+    if (a.isVip !== b.isVip) return a.isVip ? -1 : 1;
+    return (b.mmr ?? 0) - (a.mmr ?? 0);
   });
+
+  return NextResponse.json({ profiles: profiles.slice(0, 30) });
 }
