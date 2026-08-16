@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
 import { resolveSession } from "@/lib/auth";
+import { feedbackTagsFromRater } from "@/lib/feedback";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import type { MatchItem } from "@/lib/types";
 
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
       profile: await toRatedPublicProfile(row),
       matchedAt: matchedAtByTg.get(row.tgId) ?? null,
       myRating: myRatingByTg.get(row.tgId) ?? null,
+      myFeedbackTags: await feedbackTagsFromRater(session.tgId, row.tgId),
     })),
   );
 
