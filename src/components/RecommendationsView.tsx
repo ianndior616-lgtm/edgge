@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppLogoText } from "./AppLogoText";
 import { Avatar } from "./Avatar";
-import { CoinIcon } from "./CoinIcon";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { bannerCss } from "@/lib/banners";
@@ -26,7 +24,7 @@ const ROLE_BANNER: Record<string, string> = {
 
 const SWIPE_THRESHOLD = 90;
 
-/** Полноэкранная лента рекомендаций со свайпами (как было) */
+/** Полноэкранная лента рекомендаций со свайпами */
 export function RecommendationsView({ me }: { me: UserWithProfile }) {
   const { initData, openLink } = useTelegram();
 
@@ -128,43 +126,11 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
     else setDrag({ x: 0, y: 0 });
   };
 
-  const top = deck[0];
   const likeOpacity = drag.x > 0 ? Math.min(1, drag.x / 110) : 0;
   const nopeOpacity = drag.x < 0 ? Math.min(1, -drag.x / 110) : 0;
 
   return (
-    <div className="px-4 pb-24 pt-3">
-      {/* Шапка ленты */}
-      <header className="flex items-center justify-between pb-2">
-        <div className="flex items-center gap-2">
-          <img
-            src="/icon.png"
-            alt="EdGGe"
-            className="logo-ring h-8 w-8 rounded-xl object-cover"
-          />
-          <AppLogoText size="text-sm" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className="rounded-full border px-3 py-1 text-xs font-semibold"
-            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-          >
-            🔥 {deck.length} анкет
-          </span>
-          <span
-            className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold"
-            style={{
-              borderColor: "rgba(250, 204, 21, 0.35)",
-              background: "rgba(250, 204, 21, 0.1)",
-              color: "#eab308",
-            }}
-          >
-            <CoinIcon size={12} /> {me.currency}
-          </span>
-        </div>
-      </header>
-
-      {/* Карточная зона — карточка занимает примерно половину экрана */}
+    <div className="px-4 pb-24 pt-4">
       <div className="relative mx-auto h-[48dvh] max-h-[460px] min-h-[320px] w-full max-w-md">
         {loading ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-[var(--muted)]">
@@ -201,7 +167,6 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
         )}
       </div>
 
-      {/* Подсказка под карточкой */}
       {!loading && !error && deck.length > 0 && (
         <div className="mx-auto mt-4 flex max-w-md flex-col items-center gap-1.5">
           <span
@@ -216,7 +181,6 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
         </div>
       )}
 
-      {/* Окно жалобы */}
       {reportProfile && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm"
@@ -264,7 +228,6 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
         </div>
       )}
 
-      {/* Оверлей взаимного лайка */}
       {match && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
           <div
@@ -350,7 +313,6 @@ function CardLayer({
 }) {
   const role = roleById(profile.role);
   const medal = profile.mmr != null ? medalForMmr(profile.mmr) : null;
-  // Картинка карточки: своё изображение > палитра > градиент роли
   const bannerImage =
     profile.banner && profile.banner.startsWith("data:")
       ? profile.banner
@@ -386,7 +348,6 @@ function CardLayer({
         cursor: "grab",
       }}
     >
-      {/* Баннер карточки: своя картинка, палитра или градиент роли */}
       <div className="relative h-[28%] min-h-[120px] shrink-0 overflow-hidden">
         {bannerImage ? (
           <img
@@ -401,7 +362,6 @@ function CardLayer({
             style={{ background: bannerBg }}
           />
         )}
-        {/* Затемнение снизу для плавного перехода в информацию */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
 
         {onReport && (
@@ -418,7 +378,6 @@ function CardLayer({
           </button>
         )}
 
-        {/* Метки при свайпе */}
         <div
           className="pointer-events-none absolute left-5 top-5 -rotate-12 rounded-lg border-[3px] border-emerald-400 px-3 py-1 text-xl font-black uppercase tracking-wider text-emerald-300"
           style={{ opacity: likeOpacity }}
@@ -433,7 +392,6 @@ function CardLayer({
         </div>
       </div>
 
-      {/* Информация */}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-3.5">
         <div className="flex items-center gap-2.5">
           <Avatar profile={profile} size={38} />
@@ -494,7 +452,6 @@ function CardLayer({
         )}
       </div>
 
-      {/* Кнопки действий */}
       <div className="flex shrink-0 items-center justify-center gap-8 px-4 pb-3.5 pt-1.5">
         <ActionButton kind="nope" onClick={() => onAct?.("nope")} />
         <ActionButton kind="like" onClick={() => onAct?.("like")} />
