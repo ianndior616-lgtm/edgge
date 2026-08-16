@@ -183,7 +183,7 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
   const nopeOpacity = drag.x < 0 ? Math.min(1, -drag.x / 110) : 0;
 
   return (
-    <div className="px-4 pb-24 pt-4">
+    <div className="px-4 pb-24 pt-2">
       <div className="mx-auto mb-3 flex max-w-md justify-center">
         <button
           type="button"
