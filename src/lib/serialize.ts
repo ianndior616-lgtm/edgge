@@ -14,6 +14,7 @@ import {
 } from "./wallet";
 import { isVipUser } from "./vip";
 import { isLookingNow, lookingNowUntilOf } from "./looking-now";
+import { feedbackTagStatsOf } from "./feedback";
 
 const ROLE_IDS = new Set<string>(["pos1", "pos2", "pos3", "pos4", "pos5"]);
 
@@ -55,6 +56,7 @@ export function toPublicProfile(row: User): PublicProfile {
     createdAt: row.createdAt ? row.createdAt.toISOString() : null,
     averageRating: null,
     ratingsCount: 0,
+    feedbackTags: [],
   };
 }
 
@@ -102,12 +104,19 @@ export async function ratingStatsOf(tgId: number): Promise<{
 
 export async function toRatedPublicProfile(row: User): Promise<PublicProfile> {
   const profile = toPublicProfile(row);
-  const [stats, isVip, lookingNow] = await Promise.all([
+  const [stats, isVip, lookingNow, feedbackTags] = await Promise.all([
     ratingStatsOf(row.tgId),
     isVipUser(row.tgId, row.isAdmin),
     isLookingNow(row.tgId),
+    feedbackTagStatsOf(row.tgId),
   ]);
-  return { ...profile, ...stats, isVip, isLookingNow: lookingNow };
+  return {
+    ...profile,
+    ...stats,
+    isVip,
+    isLookingNow: lookingNow,
+    feedbackTags,
+  };
 }
 
 export function toUserWithProfile(row: User): UserWithProfile {
@@ -142,6 +151,7 @@ export async function withReferralCount(
     referrer,
     isVip,
     lookingNowUntil,
+    feedbackTags,
   ] = await Promise.all([
     referralCountOf(u.tgId),
     countQualifiedReferrals(u.tgId),
@@ -156,6 +166,7 @@ export async function withReferralCount(
       : Promise.resolve([] as { code: string | null }[]),
     isVipUser(u.tgId, u.isAdmin),
     lookingNowUntilOf(u.tgId),
+    feedbackTagStatsOf(u.tgId),
   ]);
 
   return {
@@ -164,6 +175,7 @@ export async function withReferralCount(
     isVip,
     isLookingNow: Boolean(lookingNowUntil),
     lookingNowUntil: lookingNowUntil?.toISOString() ?? null,
+    feedbackTags,
     referralCount,
     qualifiedReferralCount,
     referralProgressDays: Math.min(progress, 7),
@@ -173,10 +185,11 @@ export async function withReferralCount(
 
 /** Полная информация о пользователе для админ-панели */
 export async function toAdminUserView(row: User): Promise<AdminUserView> {
-  const [rating, isVip, lookingNow] = await Promise.all([
+  const [rating, isVip, lookingNow, feedbackTags] = await Promise.all([
     ratingStatsOf(row.tgId),
     isVipUser(row.tgId, row.isAdmin),
     isLookingNow(row.tgId),
+    feedbackTagStatsOf(row.tgId),
   ]);
   const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.toISOString() : null;
   const online = row.lastSeenAt
@@ -187,6 +200,7 @@ export async function toAdminUserView(row: User): Promise<AdminUserView> {
     ...toPublicProfile(row),
     isVip,
     isLookingNow: lookingNow,
+    feedbackTags,
     lastName: row.lastName,
     lookingFor: rolesFrom(row.lookingFor),
     isAdmin: row.isAdmin,
