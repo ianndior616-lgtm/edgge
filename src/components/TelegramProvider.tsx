@@ -55,48 +55,85 @@ const TelegramContext = createContext<TelegramContextValue>({
 
 export function TelegramProvider({ children }: { children: ReactNode }) {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
+  const [initData, setInitData] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    let configured = false;
+
     const tryLoad = (attemptsLeft: number) => {
+      if (cancelled) return;
+
       const wa = window.Telegram?.WebApp ?? null;
+
       if (wa) {
         setWebApp(wa);
-        try {
-          wa.ready();
-          wa.expand();
-          wa.setHeaderColor?.("#0b0e17");
-          wa.setBackgroundColor?.("#070b14");
-        } catch {
-          // не критично
+
+        if (!configured) {
+          configured = true;
+          try {
+            wa.ready();
+            wa.expand();
+            wa.setHeaderColor?.("#0b0e17");
+            wa.setBackgroundColor?.("#070b14");
+          } catch {
+            // не критично
+          }
         }
-        setReady(true);
+
+        // В некоторых клиентах объект WebApp появляется раньше, чем Telegram
+        // заполняет initData. Не считаем инициализацию завершённой, пока не
+        // дождались самих подписанных данных пользователя.
+        const rawInitData = wa.initData?.trim() ?? "";
+        if (rawInitData) {
+          setInitData(rawInitData);
+          setReady(true);
+          return;
+        }
+      }
+
+      if (attemptsLeft > 0) {
+        timer = window.setTimeout(() => tryLoad(attemptsLeft - 1), 250);
         return;
       }
-      if (attemptsLeft > 0) {
-        window.setTimeout(() => tryLoad(attemptsLeft - 1), 250);
-      } else {
-        // Открыто вне Telegram — работаем в демо-режиме
-        setReady(true);
-      }
+
+      // SDK/данные так и не появились: считаем, что страница открыта вне
+      // полноценного Telegram Mini App-контекста.
+      setReady(true);
     };
-    tryLoad(12);
+
+    // Ждём до ~10 секунд: Telegram Desktop/Web иногда отдаёт контекст не сразу.
+    tryLoad(40);
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, []);
 
-  const initData =
-    webApp?.initData && webApp.initData.length > 0 ? webApp.initData : null;
   const isDemo = !initData;
 
   const openLink = (url: string) => {
     if (webApp?.openTelegramLink) {
       try {
         webApp.openTelegramLink(url);
+        // После перехода в чат закрываем текущий Mini App, чтобы пользователь
+        // действительно увидел бота, а не оставался на прежнем экране.
+        window.setTimeout(() => {
+          try {
+            webApp.close?.();
+          } catch {
+            // не критично
+          }
+        }, 150);
         return;
       } catch {
         // переходим к запасному варианту
       }
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.location.href = url;
   };
 
   return (
