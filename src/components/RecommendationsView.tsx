@@ -86,6 +86,14 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
     }, 300);
   };
 
+  const openProfileChat = (profile: PublicProfile) => {
+    openLink(
+      profile.username
+        ? `https://t.me/${profile.username}`
+        : `tg://user?id=${profile.tgId}`,
+    );
+  };
+
   const submitReport = async (reason: string) => {
     if (!reportProfile || reportBusy) return;
     setReportBusy(true);
@@ -162,6 +170,7 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
               onPointerUp={i === 0 ? onPointerUp : undefined}
               onAct={i === 0 ? act : undefined}
               onReport={i === 0 ? () => setReportProfile(p) : undefined}
+              onMessage={i === 0 && me.isVip ? () => openProfileChat(p) : undefined}
             />
           ))
         )}
@@ -253,13 +262,7 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
             <div className="mt-5 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  openLink(
-                    match.username
-                      ? `https://t.me/${match.username}`
-                      : `tg://user?id=${match.tgId}`,
-                  )
-                }
+                onClick={() => openProfileChat(match)}
                 className="btn-cut rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/25 transition-transform active:scale-95"
               >
                 💬 Написать в Telegram
@@ -297,6 +300,7 @@ function CardLayer({
   onPointerUp,
   onAct,
   onReport,
+  onMessage,
 }: {
   profile: PublicProfile;
   index: number;
@@ -310,6 +314,7 @@ function CardLayer({
   onPointerUp?: () => void;
   onAct?: (dir: "like" | "nope") => void;
   onReport?: () => void;
+  onMessage?: () => void;
 }) {
   const role = roleById(profile.role);
   const medal = profile.mmr != null ? medalForMmr(profile.mmr) : null;
@@ -332,10 +337,13 @@ function CardLayer({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className="no-select absolute inset-0 flex flex-col overflow-hidden rounded-3xl border shadow-2xl shadow-black/40"
+      className="no-select absolute inset-0 flex flex-col overflow-hidden rounded-3xl border shadow-2xl"
       style={{
         background: "var(--surface)",
-        borderColor: "var(--border)",
+        borderColor: profile.isVip ? "rgba(250, 204, 21, 0.7)" : "var(--border)",
+        boxShadow: profile.isVip
+          ? "0 18px 45px rgba(250, 204, 21, 0.10), 0 20px 45px rgba(0,0,0,0.38)"
+          : "0 20px 45px rgba(0,0,0,0.4)",
         zIndex: 10 - index,
         touchAction: "none",
         transform: `translate(${translateX}px, ${translateY}px) rotate(${rotate}deg) ${
@@ -357,12 +365,15 @@ function CardLayer({
             draggable={false}
           />
         ) : (
-          <div
-            className="absolute inset-0"
-            style={{ background: bannerBg }}
-          />
+          <div className="absolute inset-0" style={{ background: bannerBg }} />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+
+        {profile.isVip && (
+          <span className="absolute left-3 top-3 z-10 rounded-full border border-yellow-300/50 bg-black/55 px-2.5 py-1 text-[10px] font-black tracking-[0.12em] text-yellow-300 backdrop-blur-md">
+            VIP
+          </span>
+        )}
 
         {onReport && (
           <button
@@ -396,17 +407,24 @@ function CardLayer({
         <div className="flex items-center gap-2.5">
           <Avatar profile={profile} size={38} />
           <div className="min-w-0 flex-1">
-            <h2
-              className="truncate text-lg font-extrabold leading-tight"
-              style={{ color: "var(--text)" }}
-            >
-              {profile.name ?? profile.firstName}
-              {profile.age != null && (
-                <span className="ml-2 text-sm font-semibold" style={{ color: "var(--muted)" }}>
-                  {profile.age}
+            <div className="flex min-w-0 items-center gap-2">
+              <h2
+                className="truncate text-lg font-extrabold leading-tight"
+                style={{ color: "var(--text)" }}
+              >
+                {profile.name ?? profile.firstName}
+                {profile.age != null && (
+                  <span className="ml-2 text-sm font-semibold" style={{ color: "var(--muted)" }}>
+                    {profile.age}
+                  </span>
+                )}
+              </h2>
+              {profile.isVip && (
+                <span className="shrink-0 rounded-md bg-yellow-400/10 px-1.5 py-0.5 text-[9px] font-black text-yellow-400">
+                  VIP
                 </span>
               )}
-            </h2>
+            </div>
             {profile.username && (
               <p className="truncate text-[11px] font-medium" style={{ color: "var(--accent)" }}>
                 @{profile.username}
@@ -452,8 +470,22 @@ function CardLayer({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-center gap-8 px-4 pb-3.5 pt-1.5">
+      <div className="flex shrink-0 items-center justify-center gap-5 px-4 pb-3.5 pt-1.5">
         <ActionButton kind="nope" onClick={() => onAct?.("nope")} />
+        {onMessage && (
+          <button
+            type="button"
+            aria-label="Написать без мэтча"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMessage();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-yellow-300/35 bg-yellow-400/10 text-xl text-yellow-300 shadow-lg shadow-black/20 transition-transform active:scale-90"
+          >
+            ✉️
+          </button>
+        )}
         <ActionButton kind="like" onClick={() => onAct?.("like")} />
       </div>
     </article>
