@@ -47,6 +47,9 @@ export function toPublicProfile(row: User): PublicProfile {
     dotaMainHeroes: row.dotaMainHeroes ?? [],
     dotaLastSyncAt: row.dotaLastSyncAt ? row.dotaLastSyncAt.toISOString() : null,
     isActive: row.isActive,
+    // Пока покупка VIP не подключена к биллингу: все действующие админы
+    // получают entitlement автоматически. Позже сюда добавится persisted VIP-флаг.
+    isVip: row.isAdmin,
     crownUnlocked: row.crownUnlocked,
     createdAt: row.createdAt ? row.createdAt.toISOString() : null,
     averageRating: null,
@@ -151,17 +154,9 @@ export async function withReferralCount(
   };
 }
 
-export async function toAdminUserView(
-  row: User,
-): Promise<AdminUserView> {
-  const [rating, reportCount, referralCount, qualifiedReferralCount, banned] =
-    await Promise.all([
-      ratingStatsOf(row.tgId),
-      reportCountOf(row.tgId),
-      referralCountOf(row.tgId),
-      countQualifiedReferrals(row.tgId),
-      isUserBanned(row.tgId),
-    ]);
+/** Полная информация о пользователе для админ-панели */
+export async function toAdminUserView(row: User): Promise<AdminUserView> {
+  const rating = await ratingStatsOf(row.tgId);
   const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.toISOString() : null;
   const online = row.lastSeenAt
     ? Date.now() - row.lastSeenAt.getTime() < 5 * 60 * 1000
@@ -169,22 +164,23 @@ export async function toAdminUserView(
 
   return {
     ...toPublicProfile(row),
-    ...rating,
     lastName: row.lastName,
     lookingFor: rolesFrom(row.lookingFor),
     isAdmin: row.isAdmin,
-    isBanned: banned,
+    isBanned: await isUserBanned(row.tgId),
     onboardedAt: row.onboardedAt ? row.onboardedAt.toISOString() : null,
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
     currency: row.currency,
     streakDays: row.streakDays,
     lastClaimDay: row.lastClaimDay,
     referralCode: row.referralCode,
-    referralCount,
-    qualifiedReferralCount,
+    referralCount: await referralCountOf(row.tgId),
+    qualifiedReferralCount: await countQualifiedReferrals(row.tgId),
     lastSeenAt,
     online,
     arcanaIssued: row.arcanaIssued,
-    reportCount,
+    reportCount: await reportCountOf(row.tgId),
+    averageRating: rating.averageRating,
+    ratingsCount: rating.ratingsCount,
   };
 }
