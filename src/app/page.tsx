@@ -255,7 +255,7 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-[58px] z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
+          className="fixed right-3 top-2 z-40 flex h-8 w-10 items-center justify-center rounded-lg border backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
@@ -266,17 +266,17 @@ function App() {
                 ? "color-mix(in srgb, var(--accent) 40%, var(--border))"
                 : "var(--border)",
             color: tab === "settings" ? "var(--accent)" : "var(--muted)",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+            boxShadow: "0 3px 10px rgba(0,0,0,0.16)",
           }}
         >
           <svg
-            viewBox="0 0 30 10"
-            className="h-[10px] w-[30px]"
+            viewBox="0 0 24 8"
+            className="h-2 w-6"
             aria-hidden="true"
           >
-            <circle cx="5" cy="5" r="2.4" fill="currentColor" />
-            <circle cx="15" cy="5" r="2.4" fill="currentColor" />
-            <circle cx="25" cy="5" r="2.4" fill="currentColor" />
+            <circle cx="4" cy="4" r="2" fill="currentColor" />
+            <circle cx="12" cy="4" r="2" fill="currentColor" />
+            <circle cx="20" cy="4" r="2" fill="currentColor" />
           </svg>
         </button>
       )}
