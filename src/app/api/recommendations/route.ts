@@ -42,22 +42,29 @@ export async function GET(request: Request) {
     isNotNull(users.profileLink),
   ];
 
-  // Роли намеренно НЕ фильтруем: пользователю показываются carry/mid/offlane/
-  // support любых позиций. Единственное игровое ограничение — близость MMR.
+  // Роли намеренно НЕ фильтруем: показываем все позиции.
+  // Единственное игровое ограничение — диапазон ±2000 MMR.
   if (me?.mmr != null) {
     conditions.push(gte(users.mmr, Math.max(0, me.mmr - MMR_RANGE)));
     conditions.push(lte(users.mmr, me.mmr + MMR_RANGE));
   }
 
+  // Берём запас кандидатов, потому что фактические VIP и временный статус
+  // «Ищу пати сейчас» вычисляются отдельно и сортируются уже после сериализации.
   const rows = await db
     .select()
     .from(users)
     .where(and(...conditions, notInArray(users.tgId, reacted)))
-    // VIP выше обычных анкет; внутри группы — более высокий MMR.
     .orderBy(desc(users.isAdmin), desc(users.mmr))
-    .limit(30);
+    .limit(100);
 
-  return NextResponse.json({
-    profiles: await Promise.all(rows.map(toRatedPublicProfile)),
+  const profiles = await Promise.all(rows.map(toRatedPublicProfile));
+
+  profiles.sort((a, b) => {
+    if (a.isLookingNow !== b.isLookingNow) return a.isLookingNow ? -1 : 1;
+    if (a.isVip !== b.isVip) return a.isVip ? -1 : 1;
+    return (b.mmr ?? 0) - (a.mmr ?? 0);
   });
+
+  return NextResponse.json({ profiles: profiles.slice(0, 30) });
 }
