@@ -12,6 +12,7 @@ import {
   countReferralActiveDays,
   isUserBanned,
 } from "./wallet";
+import { isVipUser } from "./vip";
 
 const ROLE_IDS = new Set<string>(["pos1", "pos2", "pos3", "pos4", "pos5"]);
 
@@ -47,8 +48,6 @@ export function toPublicProfile(row: User): PublicProfile {
     dotaMainHeroes: row.dotaMainHeroes ?? [],
     dotaLastSyncAt: row.dotaLastSyncAt ? row.dotaLastSyncAt.toISOString() : null,
     isActive: row.isActive,
-    // Пока покупка VIP не подключена к биллингу: все действующие админы
-    // получают entitlement автоматически. Позже сюда добавится persisted VIP-флаг.
     isVip: row.isAdmin,
     crownUnlocked: row.crownUnlocked,
     createdAt: row.createdAt ? row.createdAt.toISOString() : null,
@@ -102,8 +101,11 @@ export async function ratingStatsOf(tgId: number): Promise<{
 
 export async function toRatedPublicProfile(row: User): Promise<PublicProfile> {
   const profile = toPublicProfile(row);
-  const stats = await ratingStatsOf(row.tgId);
-  return { ...profile, ...stats };
+  const [stats, isVip] = await Promise.all([
+    ratingStatsOf(row.tgId),
+    isVipUser(row.tgId, row.isAdmin),
+  ]);
+  return { ...profile, ...stats, isVip };
 }
 
 export function toUserWithProfile(row: User): UserWithProfile {
@@ -129,7 +131,7 @@ export function toUserWithProfile(row: User): UserWithProfile {
 export async function withReferralCount(
   u: UserWithProfile,
 ): Promise<UserWithProfile> {
-  const [referralCount, qualifiedReferralCount, rating, progress, referrer] =
+  const [referralCount, qualifiedReferralCount, rating, progress, referrer, isVip] =
     await Promise.all([
       referralCountOf(u.tgId),
       countQualifiedReferrals(u.tgId),
@@ -142,11 +144,13 @@ export async function withReferralCount(
             .where(eq(usersTable.tgId, u.referredByTgId))
             .limit(1)
         : Promise.resolve([] as { code: string | null }[]),
+      isVipUser(u.tgId, u.isAdmin),
     ]);
 
   return {
     ...u,
     ...rating,
+    isVip,
     referralCount,
     qualifiedReferralCount,
     referralProgressDays: Math.min(progress, 7),
@@ -156,7 +160,10 @@ export async function withReferralCount(
 
 /** Полная информация о пользователе для админ-панели */
 export async function toAdminUserView(row: User): Promise<AdminUserView> {
-  const rating = await ratingStatsOf(row.tgId);
+  const [rating, isVip] = await Promise.all([
+    ratingStatsOf(row.tgId),
+    isVipUser(row.tgId, row.isAdmin),
+  ]);
   const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.toISOString() : null;
   const online = row.lastSeenAt
     ? Date.now() - row.lastSeenAt.getTime() < 5 * 60 * 1000
@@ -164,6 +171,7 @@ export async function toAdminUserView(row: User): Promise<AdminUserView> {
 
   return {
     ...toPublicProfile(row),
+    isVip,
     lastName: row.lastName,
     lookingFor: rolesFrom(row.lookingFor),
     isAdmin: row.isAdmin,
