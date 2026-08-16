@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
@@ -10,10 +10,7 @@ import {
 import { resolveSession, resolveUser } from "@/lib/auth";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
-import {
-  checkMilestones,
-  recordSwipeActivity,
-} from "@/lib/wallet";
+import { checkMilestones, recordSwipeActivity } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 const ALLOWED_LIKE_KEYS = ["tgId", "liked"] as const;
@@ -25,10 +22,16 @@ export async function POST(request: Request) {
   const session = await resolveSession(request);
   const me = await resolveUser(request);
   if (!session || !me) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram-бота" },
+      { status: 401 },
+    );
   }
   if (!me.onboardedAt) {
-    return NextResponse.json({ error: "Сначала заполни свою анкету" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Сначала заполни свою анкету" },
+      { status: 403 },
+    );
   }
 
   let body: { tgId?: unknown; liked?: unknown };
@@ -52,9 +55,17 @@ export async function POST(request: Request) {
   const [target] = await db
     .select()
     .from(users)
-    .where(and(eq(users.tgId, tgId), eq(users.isActive, true), isNotNull(users.onboardedAt)))
+    .where(
+      and(
+        eq(users.tgId, tgId),
+        eq(users.isActive, true),
+        isNotNull(users.onboardedAt),
+      ),
+    )
     .limit(1);
-  if (!target) return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
+  if (!target) {
+    return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
+  }
 
   await db
     .insert(likes)
@@ -93,7 +104,9 @@ export async function POST(request: Request) {
           chat_id: tgId,
           text: `💘 Это взаимно!\n\n${likerName} тоже лайкнул(а) тебя. Открой EdGGe и загляни в «Чаты».`,
           reply_markup: {
-            inline_keyboard: [[{ text: "💬 Открыть EdGGe", web_app: { url: appUrl } }]],
+            inline_keyboard: [
+              [{ text: "💬 Открыть EdGGe", web_app: { url: appUrl } }],
+            ],
           },
         });
       } catch {
@@ -108,11 +121,34 @@ export async function POST(request: Request) {
   });
 }
 
+/**
+ * «Начать сначала» очищает обычные свайпы, но НЕ стирает историю мэтчей.
+ * Активный мэтч = обе стороны liked=true.
+ * Закрытый мэтч помечается одинаковым created_at у обеих записей.
+ */
 export async function DELETE(request: Request) {
   const session = await resolveSession(request);
   if (!session) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram-бота" },
+      { status: 401 },
+    );
   }
-  await db.delete(likes).where(eq(likes.likerTgId, session.tgId));
+
+  await db.execute(sql`
+    delete from likes l
+     where l.liker_tg_id = ${session.tgId}
+       and not exists (
+         select 1
+           from likes r
+          where r.liker_tg_id = l.liked_tg_id
+            and r.liked_tg_id = l.liker_tg_id
+            and (
+              (l.liked = true and r.liked = true)
+              or l.created_at = r.created_at
+            )
+       )
+  `);
+
   return NextResponse.json({ ok: true });
 }
