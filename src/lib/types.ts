@@ -1,3 +1,5 @@
+import type { FeedbackTagId, FeedbackTagStat } from "./feedback-tags";
+
 /** Позиции в Dota 2 */
 export type RoleId = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
 
@@ -41,6 +43,8 @@ export type PublicProfile = {
   /** Средняя оценка после мэтчей */
   averageRating: number | null;
   ratingsCount: number;
+  /** Самые частые характеристики, которые дали после мэтчей. */
+  feedbackTags: FeedbackTagStat[];
 };
 
 /** Текущий пользователь: анкета + приватные данные */
@@ -144,6 +148,7 @@ export type RatingResponse = {
   averageRating: number | null;
   ratingsCount: number;
   myRating: number | null;
+  myFeedbackTags: FeedbackTagId[];
 };
 
 export type VerifyResponse = {
@@ -177,6 +182,7 @@ export type MatchItem = {
   profile: PublicProfile;
   matchedAt: string | null;
   myRating: number | null;
+  myFeedbackTags: FeedbackTagId[];
 };
 
 export type MatchesResponse = {
