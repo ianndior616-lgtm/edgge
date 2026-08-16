@@ -71,7 +71,7 @@ export function SettingsView({
         className="font-display fade-up mb-4 text-xl font-extrabold"
         style={{ color: "var(--text)" }}
       >
-        ⚙️ Настройки
+        Настройки
       </h1>
 
       <section
@@ -123,27 +123,21 @@ export function SettingsView({
           className="fade-up mt-4 rounded-2xl border p-4 shadow-xl"
           style={{
             background: "var(--surface)",
-            borderColor: "color-mix(in srgb, var(--accent) 45%, var(--border))",
+            borderColor: "rgba(250, 204, 21, 0.45)",
+            boxShadow: "0 10px 32px rgba(250, 204, 21, 0.08)",
           }}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-sm font-black" style={{ color: "var(--text)" }}>
-                💎 Full Custom
+                👑 VIP
               </h2>
               <p className="mt-0.5 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                Привилегия полного оформления: фон, карточки, текст и кнопки.
+                Полный кастом интерфейса. VIP также получает приоритет анкеты в ленте и может писать игрокам без мэтча.
               </p>
             </div>
-            <span
-              className="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide"
-              style={{
-                borderColor: "color-mix(in srgb, var(--accent) 50%, transparent)",
-                background: "var(--accent-soft)",
-                color: "var(--accent)",
-              }}
-            >
-              Unlocked
+            <span className="rounded-full border border-yellow-400/40 bg-yellow-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-400">
+              VIP
             </span>
           </div>
 
@@ -184,12 +178,12 @@ export function SettingsView({
             type="button"
             onClick={() => {
               onResetCustomTheme();
-              onToast("Full Custom сброшен до стандартной темы");
+              onToast("VIP-оформление сброшено до стандартной темы");
             }}
             className="mt-3 w-full rounded-xl border px-4 py-2.5 text-sm font-bold transition-transform active:scale-[0.98]"
             style={{ borderColor: "var(--border)", color: "var(--text)" }}
           >
-            ↩️ Сбросить кастом
+            ↩️ Сбросить оформление
           </button>
         </section>
       )}
