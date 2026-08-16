@@ -24,7 +24,18 @@ const ROLE_BANNER: Record<string, string> = {
 
 const SWIPE_THRESHOLD = 90;
 
-/** Полноэкранная лента рекомендаций со свайпами */
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        "button, a, input, textarea, select, [role='button'], [data-no-swipe='true']",
+      ),
+    )
+  );
+}
+
+/** Полноэкранная лента рекомендаций: можно и свайпать, и нажимать кнопки. */
 export function RecommendationsView({ me }: { me: UserWithProfile }) {
   const { initData, openLink } = useTelegram();
 
@@ -77,7 +88,7 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
           setMatch(res.matchedProfile);
         }
       } catch {
-        // не критично — свайп уже сделан
+        // не критично — карточка уже ушла
       }
       setDeck((d) => d.slice(1));
       setDrag({ x: 0, y: 0 });
@@ -102,8 +113,9 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
         method: "POST",
         body: { reportedTgId: reportProfile.tgId, reason },
       });
+      const reportedTgId = reportProfile.tgId;
       setReportProfile(null);
-      setDeck((d) => d.filter((p) => p.tgId !== reportProfile.tgId));
+      setDeck((d) => d.filter((p) => p.tgId !== reportedTgId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось отправить жалобу");
     } finally {
@@ -111,22 +123,21 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
     }
   };
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (leaving || busy || deck.length === 0) return;
+  const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (leaving || busy || deck.length === 0 || isInteractiveTarget(e.target)) return;
     dragging.current = true;
     start.current = { x: e.clientX, y: e.clientY };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     if (!dragging.current) return;
-    setDrag({
-      x: e.clientX - start.current.x,
-      y: e.clientY - start.current.y,
-    });
+    const dx = e.clientX - start.current.x;
+    const dy = e.clientY - start.current.y;
+    setDrag({ x: dx, y: dy * 0.18 });
   };
 
-  const onPointerUp = () => {
+  const finishPointer = () => {
     if (!dragging.current) return;
     dragging.current = false;
     if (drag.x > SWIPE_THRESHOLD) act("like");
@@ -167,7 +178,7 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
               nopeOpacity={i === 0 ? nopeOpacity : 0}
               onPointerDown={i === 0 ? onPointerDown : undefined}
               onPointerMove={i === 0 ? onPointerMove : undefined}
-              onPointerUp={i === 0 ? onPointerUp : undefined}
+              onPointerUp={i === 0 ? finishPointer : undefined}
               onAct={i === 0 ? act : undefined}
               onReport={i === 0 ? () => setReportProfile(p) : undefined}
               onMessage={i === 0 && me.isVip ? () => openProfileChat(p) : undefined}
@@ -184,8 +195,8 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
           >
             Осталось анкет: {deck.length}
           </span>
-          <p className="text-xs" style={{ color: "var(--dim)" }}>
-            Свайп вправо — ❤️ лайк · влево — ✕ мимо. Взаимный лайк = мэтч 💘
+          <p className="text-center text-xs" style={{ color: "var(--dim)" }}>
+            Свайп вправо или ❤️ — лайк · влево или ✕ — мимо. Взаимный лайк = мэтч 💘
           </p>
         </div>
       )}
@@ -244,15 +255,11 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
             style={{ background: "var(--surface)", borderColor: "var(--border)" }}
           >
             <div className="text-5xl">💘</div>
-            <h2
-              className="font-display mt-3 text-2xl font-black"
-              style={{ color: "var(--text)" }}
-            >
+            <h2 className="font-display mt-3 text-2xl font-black" style={{ color: "var(--text)" }}>
               Это взаимно!
             </h2>
             <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-              Ты и {match.name ?? match.firstName} лайкнули друг друга — самое
-              время найти тиммейта.
+              Ты и {match.name ?? match.firstName} лайкнули друг друга — самое время найти тиммейта.
             </p>
             <div className="mt-5 flex items-center justify-center gap-4">
               <Avatar profile={me} size={64} />
@@ -309,8 +316,8 @@ function CardLayer({
   leaving: "like" | "nope" | null;
   likeOpacity: number;
   nopeOpacity: number;
-  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
-  onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
+  onPointerMove?: (e: React.PointerEvent<HTMLElement>) => void;
   onPointerUp?: () => void;
   onAct?: (dir: "like" | "nope") => void;
   onReport?: () => void;
@@ -319,9 +326,7 @@ function CardLayer({
   const role = roleById(profile.role);
   const medal = profile.mmr != null ? medalForMmr(profile.mmr) : null;
   const bannerImage =
-    profile.banner && profile.banner.startsWith("data:")
-      ? profile.banner
-      : null;
+    profile.banner && profile.banner.startsWith("data:") ? profile.banner : null;
   const bannerBg =
     profile.banner && !bannerImage
       ? (bannerCss(profile.banner) ?? ROLE_BANNER[profile.role ?? ""] ?? ROLE_BANNER.pos1)
@@ -345,25 +350,18 @@ function CardLayer({
           ? "0 18px 45px rgba(250, 204, 21, 0.10), 0 20px 45px rgba(0,0,0,0.38)"
           : "0 20px 45px rgba(0,0,0,0.4)",
         zIndex: 10 - index,
-        touchAction: "none",
+        touchAction: "pan-y",
         transform: `translate(${translateX}px, ${translateY}px) rotate(${rotate}deg) ${
           index > 0 ? `scale(${1 - index * 0.04}) translateY(${index * 10}px)` : ""
         }`,
-        transition: dragging
-          ? "none"
-          : "transform .3s cubic-bezier(.2,.8,.3,1)",
+        transition: dragging ? "none" : "transform .3s cubic-bezier(.2,.8,.3,1)",
         filter: index > 0 ? "brightness(0.72)" : undefined,
-        cursor: "grab",
+        cursor: dragging ? "grabbing" : "grab",
       }}
     >
       <div className="relative h-[28%] min-h-[120px] shrink-0 overflow-hidden">
         {bannerImage ? (
-          <img
-            src={bannerImage}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-            draggable={false}
-          />
+          <img src={bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
         ) : (
           <div className="absolute inset-0" style={{ background: bannerBg }} />
         )}
@@ -378,6 +376,7 @@ function CardLayer({
         {onReport && (
           <button
             type="button"
+            data-no-swipe="true"
             onClick={(e) => {
               e.stopPropagation();
               onReport();
@@ -408,10 +407,7 @@ function CardLayer({
           <Avatar profile={profile} size={38} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <h2
-                className="truncate text-lg font-extrabold leading-tight"
-                style={{ color: "var(--text)" }}
-              >
+              <h2 className="truncate text-lg font-extrabold leading-tight" style={{ color: "var(--text)" }}>
                 {profile.name ?? profile.firstName}
                 {profile.age != null && (
                   <span className="ml-2 text-sm font-semibold" style={{ color: "var(--muted)" }}>
@@ -434,14 +430,9 @@ function CardLayer({
         </div>
 
         {medal && (
-          <div
-            className="flex flex-wrap items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold"
-            style={{ background: "var(--surface2)" }}
-          >
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold" style={{ background: "var(--surface2)" }}>
             {role && (
-              <span
-                className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${role.badge}`}
-              >
+              <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${role.badge}`}>
                 {role.emoji} {role.label}
               </span>
             )}
@@ -462,7 +453,10 @@ function CardLayer({
             href={profile.profileLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-auto inline-flex max-w-full items-center gap-1 truncate pt-1.5 text-[11px] font-medium hover:underline"
+            data-no-swipe="true"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-auto block w-full break-all whitespace-normal pt-1.5 text-[11px] font-medium leading-relaxed hover:underline"
             style={{ color: "var(--accent)" }}
           >
             🔗 {profile.profileLink.replace(/^https?:\/\//, "")}
@@ -470,12 +464,13 @@ function CardLayer({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-center gap-5 px-4 pb-3.5 pt-1.5">
+      <div className="flex shrink-0 items-center justify-center gap-5 px-4 pb-3.5 pt-1.5" data-no-swipe="true">
         <ActionButton kind="nope" onClick={() => onAct?.("nope")} />
         {onMessage && (
           <button
             type="button"
             aria-label="Написать без мэтча"
+            data-no-swipe="true"
             onClick={(e) => {
               e.stopPropagation();
               onMessage();
@@ -503,7 +498,13 @@ function ActionButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      data-no-swipe="true"
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
       aria-label={isLike ? "Лайк" : "Мимо"}
       className={`flex h-14 w-14 items-center justify-center rounded-full text-xl shadow-xl shadow-black/30 transition-transform active:scale-90 ${
         isLike
@@ -512,12 +513,7 @@ function ActionButton({
       }`}
     >
       {isLike ? (
-        <svg
-          viewBox="0 0 24 24"
-          fill="#ffffff"
-          className="h-7 w-7 drop-shadow"
-          aria-hidden
-        >
+        <svg viewBox="0 0 24 24" fill="#ffffff" className="h-7 w-7 drop-shadow" aria-hidden>
           <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
         </svg>
       ) : (
@@ -552,8 +548,7 @@ function EmptyDeck({ onReload }: { onReload: () => void }) {
         Анкеты закончились
       </p>
       <p className="max-w-xs text-sm">
-        Ты посмотрел все доступные анкеты. Сбрось оценки — и лента наполнится
-        заново.
+        Ты посмотрел все доступные анкеты. Сбрось оценки — и лента наполнится заново.
       </p>
       <button
         type="button"
