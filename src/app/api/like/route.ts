@@ -15,6 +15,39 @@ import { checkMilestones, recordSwipeActivity } from "@/lib/wallet";
 export const dynamic = "force-dynamic";
 const ALLOWED_LIKE_KEYS = ["tgId", "liked"] as const;
 
+async function sendLikeNotification({
+  chatId,
+  likerName,
+  appUrl,
+  match,
+}: {
+  chatId: number;
+  likerName: string;
+  appUrl: string;
+  match: boolean;
+}) {
+  try {
+    await tgApi("sendMessage", {
+      chat_id: chatId,
+      text: match
+        ? `💘 У тебя новый мэтч!\n\n${likerName} тоже лайкнул(а) тебя. Открой EdGGe и загляни в «Чаты».`
+        : `❤️ Твою анкету лайкнули!\n\n${likerName} поставил(а) тебе лайк. Загляни в EdGGe — возможно, это будущий мэтч.`,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: match ? "💬 Открыть мэтч" : "❤️ Открыть EdGGe",
+              web_app: { url: appUrl },
+            },
+          ],
+        ],
+      },
+    });
+  } catch {
+    // Пользователь мог заблокировать бота; работа лайка от этого не зависит.
+  }
+}
+
 export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
@@ -67,6 +100,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
   }
 
+  // Нужен, чтобы повторный запрос/двойной клик не слал повторные уведомления.
+  const [previousReaction] = await db
+    .select({ liked: likes.liked })
+    .from(likes)
+    .where(
+      and(
+        eq(likes.likerTgId, session.tgId),
+        eq(likes.likedTgId, tgId),
+      ),
+    )
+    .limit(1);
+  const isFreshLike = body.liked && previousReaction?.liked !== true;
+
   await db
     .insert(likes)
     .values({ likerTgId: session.tgId, likedTgId: tgId, liked: body.liked })
@@ -95,23 +141,16 @@ export async function POST(request: Request) {
       .limit(1);
     match = reciprocal.length > 0;
 
-    if (match) {
-      try {
-        const origin = new URL(request.url).origin;
-        const appUrl = process.env.APP_URL || origin;
-        const likerName = me.name || session.firstName || "Игрок";
-        await tgApi("sendMessage", {
-          chat_id: tgId,
-          text: `💘 Это взаимно!\n\n${likerName} тоже лайкнул(а) тебя. Открой EdGGe и загляни в «Чаты».`,
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "💬 Открыть EdGGe", web_app: { url: appUrl } }],
-            ],
-          },
-        });
-      } catch {
-        // уведомление не критично
-      }
+    if (isFreshLike) {
+      const origin = new URL(request.url).origin;
+      const appUrl = process.env.APP_URL || origin;
+      const likerName = me.name || session.firstName || "Игрок";
+      await sendLikeNotification({
+        chatId: tgId,
+        likerName,
+        appUrl,
+        match,
+      });
     }
   }
 
