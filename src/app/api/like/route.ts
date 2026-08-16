@@ -8,6 +8,7 @@ import {
   rejectLargeBody,
 } from "@/lib/api-guards";
 import { resolveSession, resolveUser } from "@/lib/auth";
+import { LIKE_RECOMMENDATION_COOLDOWN_MS } from "@/lib/like-cooldown";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
 import { checkMilestones, recordSwipeActivity } from "@/lib/wallet";
@@ -174,9 +175,14 @@ export async function DELETE(request: Request) {
     );
   }
 
+  const cooldownStartedAt = new Date(
+    Date.now() - LIKE_RECOMMENDATION_COOLDOWN_MS,
+  );
+
   await db.execute(sql`
     delete from likes l
      where l.liker_tg_id = ${session.tgId}
+       and (l.liked = false or l.created_at < ${cooldownStartedAt})
        and not exists (
          select 1
            from likes r
