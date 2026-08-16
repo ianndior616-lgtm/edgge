@@ -45,7 +45,6 @@ function App() {
   useEffect(() => {
     if (!ready) return;
 
-    // Не делаем заведомо невалидный auth-запрос без Telegram initData.
     if (!initData) {
       setAuthError("Telegram не передал initData");
       setStage("need-tg");
@@ -277,6 +276,41 @@ function App() {
         </main>
       )}
 
+      {stage === "app" && (
+        <button
+          type="button"
+          onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
+          aria-label="Настройки"
+          title="Настройки"
+          className="fixed right-4 top-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border shadow-xl backdrop-blur-md transition-all active:scale-90"
+          style={{
+            background:
+              tab === "settings"
+                ? "color-mix(in srgb, var(--accent) 22%, var(--surface))"
+                : "color-mix(in srgb, var(--surface) 86%, transparent)",
+            borderColor:
+              tab === "settings"
+                ? "color-mix(in srgb, var(--accent) 55%, var(--border))"
+                : "var(--border)",
+            color: tab === "settings" ? "var(--accent)" : "var(--text)",
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.56-1.03H5.3v-3h.14A1.7 1.7 0 0 0 7 9.94a1.7 1.7 0 0 0-.34-1.88L6.6 8l2.12-2.12.06.06A1.7 1.7 0 0 0 10.66 6a1.7 1.7 0 0 0 1.03-1.56V4.3h3v.14A1.7 1.7 0 0 0 15.72 6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.38 9.66a1.7 1.7 0 0 0 1.56 1.03h.14v3h-.14A1.7 1.7 0 0 0 19.4 15Z" />
+          </svg>
+        </button>
+      )}
+
       {stage === "app" && tab !== "recs" && (
         <button
           type="button"
@@ -299,7 +333,6 @@ function App() {
         >
           <div className="mx-auto flex max-w-md gap-2 px-3 pt-2">
             <NavButton active={tab === "profile"} onClick={() => setTab("profile")} icon="👤" label="Профиль" />
-            <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon="⚙️" label="Настройки" />
             <NavButton active={tab === "chats"} onClick={() => setTab("chats")} icon="💬" label="Чаты" />
             <NavButton active={tab === "wheel"} onClick={() => setTab("wheel")} icon="🎡" label="Фортуна" />
             {me?.isAdmin && <NavButton active={tab === "admin"} onClick={() => setTab("admin")} icon="🛡️" label="Админ" />}
