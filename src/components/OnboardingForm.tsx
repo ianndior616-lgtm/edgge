@@ -83,7 +83,6 @@ export function OnboardingForm({
 
     if (!cleanName) return setError("Укажи своё имя");
     if (!role) return setError("Выбери свою роль в команде");
-    if (lookingFor.length === 0) return setError("Выбери хотя бы одну роль, которую ищешь");
     if (!Number.isInteger(mmrNum) || mmrNum < 0 || mmrNum > 20000)
       return setError("Укажи свой ПТС (0 – 20000)");
     if (!Number.isInteger(ageNum) || ageNum < 12 || ageNum > 80)
@@ -95,6 +94,8 @@ export function OnboardingForm({
     const body = {
       name: cleanName,
       role,
+      // Предпочтения можно менять в любой момент и можно очистить полностью.
+      // На рекомендации они больше не влияют — там показываются все роли.
       lookingFor,
       avatarUrl,
       banner,
@@ -189,10 +190,15 @@ export function OnboardingForm({
             </button>
           ))}
         </div>
+        {initial && (
+          <p className="mt-1.5 text-xs" style={{ color: "var(--dim)" }}>
+            Роль можно менять сколько угодно — изменения сразу попадут в твою анкету.
+          </p>
+        )}
       </div>
 
       <div>
-        <span className={LABEL_CLS}>Кого ищешь? <span className="opacity-60">(можно несколько)</span></span>
+        <span className={LABEL_CLS}>Кого ищешь? <span className="opacity-60">(необязательно)</span></span>
         <div className="flex flex-wrap gap-2">
           {ROLES.map((r) => {
             const selected = lookingFor.includes(r.id);
@@ -203,6 +209,9 @@ export function OnboardingForm({
             );
           })}
         </div>
+        <p className="mt-1.5 text-xs" style={{ color: "var(--dim)" }}>
+          Это только предпочтение в профиле. В ленте тебе показываются игроки всех ролей.
+        </p>
       </div>
 
       <div>
@@ -212,7 +221,9 @@ export function OnboardingForm({
           <input type="number" className={INPUT_CLS} placeholder="Например: 3500" value={mmr} min={0} max={20000} onChange={(e) => setMmr(e.target.value)} />
           <div className="flex w-40 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface2)] text-xs text-[var(--muted)]">{medalHint(mmrSliderValue)}</div>
         </div>
-        <p className="mt-1.5 text-xs" style={{ color: "var(--dim)" }}>MMR всегда задаёшь ты сам — данные Dotabuff/OpenDota его больше не перетирают.</p>
+        <p className="mt-1.5 text-xs" style={{ color: "var(--dim)" }}>
+          MMR задаёшь и меняешь ты сам. Рекомендации показывают игроков в диапазоне ±2000 ПТС.
+        </p>
       </div>
 
       <div>
@@ -236,7 +247,7 @@ export function OnboardingForm({
       <div className="flex gap-2 pt-1">
         {onCancel && <button type="button" onClick={onCancel} className="rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-sm font-semibold text-[var(--text)]">Отмена</button>}
         <button type="submit" disabled={saving} className="btn-cut flex-1 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
-          {saving ? "Сохраняем…" : initial ? "💾 Сохранить анкету" : "🚀 Создать анкету"}
+          {saving ? "Сохраняем…" : initial ? "💾 Сохранить изменения" : "🚀 Создать анкету"}
         </button>
       </div>
     </form>
