@@ -64,8 +64,7 @@ export function isProfileComplete(
       p.role &&
       p.mmr != null &&
       p.age != null &&
-      p.profileLink &&
-      (p.lookingFor?.length ?? 0) > 0,
+      p.profileLink,
   );
 }
 
