@@ -27,7 +27,7 @@ type RegMode = "user" | null;
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
 function App() {
-  const { ready, initData, isDemo, openLink } = useTelegram();
+  const { ready, initData, isDemo, openLink, webApp } = useTelegram();
   const { theme, setTheme } = useTheme();
 
   const [stage, setStage] = useState<Stage>("loading");
@@ -35,6 +35,7 @@ function App() {
   const [tab, setTab] = useState<Tab>("recs");
   const [toast, setToast] = useState<ReactNode | null>(null);
   const [regMode, setRegMode] = useState<RegMode>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const showToast = (msg: ReactNode) => {
     setToast(msg);
@@ -43,6 +44,14 @@ function App() {
 
   useEffect(() => {
     if (!ready) return;
+
+    // Не делаем заведомо невалидный auth-запрос без Telegram initData.
+    if (!initData) {
+      setAuthError("Telegram не передал initData");
+      setStage("need-tg");
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -51,10 +60,14 @@ function App() {
           body: {},
         });
         if (cancelled) return;
+        setAuthError(null);
         setMe(res.user);
         setStage(res.user.profileComplete ? "app" : "onboarding");
-      } catch {
-        if (!cancelled) setStage("need-tg");
+      } catch (error) {
+        if (!cancelled) {
+          setAuthError(error instanceof Error ? error.message : String(error));
+          setStage("need-tg");
+        }
       }
     })();
     return () => {
@@ -67,8 +80,6 @@ function App() {
     setStage("app");
   };
 
-  // Автоматический ежедневный чек-ин при входе в приложение:
-  // награда растёт со стриком, пропуск дня сбрасывает серию.
   useEffect(() => {
     if (stage !== "app" && stage !== "onboarding") return;
     if (!me) return;
@@ -116,12 +127,17 @@ function App() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
-      {/* Экраны до входа */}
       {stage === "loading" && <SplashScreen />}
 
-      {stage === "need-tg" && <NeedTelegramScreen openLink={openLink} />}
+      {stage === "need-tg" && (
+        <NeedTelegramScreen
+          openLink={openLink}
+          sdkPresent={Boolean(webApp)}
+          initDataPresent={Boolean(initData)}
+          authError={authError}
+        />
+      )}
 
-      {/* Приветственный экран перед регистрацией */}
       {stage === "onboarding" && me && regMode === null && (
         <main className="fade-up px-4 pb-16 pt-10">
           <div className="mb-8 flex flex-col items-center text-center">
@@ -191,7 +207,6 @@ function App() {
         </main>
       )}
 
-      {/* Регистрация при первом входе: форма пользователя */}
       {stage === "onboarding" && me && regMode !== null && (
         <main className="fade-up px-4 pb-16 pt-6">
           <div className="mb-5 flex flex-col items-center text-center">
@@ -226,7 +241,6 @@ function App() {
         </main>
       )}
 
-      {/* Основное приложение */}
       {stage === "app" && me && (
         <main className="flex min-h-[100dvh] flex-col">
           {tab === "recs" && (
@@ -263,7 +277,6 @@ function App() {
         </main>
       )}
 
-      {/* Кнопка «Рекомендации» над нижней панелью (скрыта внутри ленты) */}
       {stage === "app" && tab !== "recs" && (
         <button
           type="button"
@@ -274,7 +287,6 @@ function App() {
         </button>
       )}
 
-      {/* Нижняя навигация: Профиль / Настройки / Чаты */}
       {stage === "app" && (
         <nav
           className="fixed inset-x-0 bottom-0 z-40 border-t shadow-[0_-8px_24px_rgba(0,0,0,0.25)]"
@@ -286,52 +298,20 @@ function App() {
           }}
         >
           <div className="mx-auto flex max-w-md gap-2 px-3 pt-2">
-            <NavButton
-              active={tab === "profile"}
-              onClick={() => setTab("profile")}
-              icon="👤"
-              label="Профиль"
-            />
-            <NavButton
-              active={tab === "settings"}
-              onClick={() => setTab("settings")}
-              icon="⚙️"
-              label="Настройки"
-            />
-            <NavButton
-              active={tab === "chats"}
-              onClick={() => setTab("chats")}
-              icon="💬"
-              label="Чаты"
-            />
-            <NavButton
-              active={tab === "wheel"}
-              onClick={() => setTab("wheel")}
-              icon="🎡"
-              label="Фортуна"
-            />
-            {me?.isAdmin && (
-              <NavButton
-                active={tab === "admin"}
-                onClick={() => setTab("admin")}
-                icon="🛡️"
-                label="Админ"
-              />
-            )}
+            <NavButton active={tab === "profile"} onClick={() => setTab("profile")} icon="👤" label="Профиль" />
+            <NavButton active={tab === "settings"} onClick={() => setTab("settings")} icon="⚙️" label="Настройки" />
+            <NavButton active={tab === "chats"} onClick={() => setTab("chats")} icon="💬" label="Чаты" />
+            <NavButton active={tab === "wheel"} onClick={() => setTab("wheel")} icon="🎡" label="Фортуна" />
+            {me?.isAdmin && <NavButton active={tab === "admin"} onClick={() => setTab("admin")} icon="🛡️" label="Админ" />}
           </div>
         </nav>
       )}
 
-      {/* Тост */}
       {toast && (
         <div className="fade-up fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
           <div
             className="rounded-xl border px-4 py-2.5 text-sm shadow-2xl"
-            style={{
-              background: "var(--surface)",
-              borderColor: "var(--border)",
-              color: "var(--text)",
-            }}
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
           >
             {toast}
           </div>
@@ -341,33 +321,17 @@ function App() {
   );
 }
 
-function NavButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: string;
-  label: string;
-}) {
+function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-2 text-[12px] font-bold transition-all active:scale-95"
       style={{
-        background: active
-          ? "#ffffff"
-          : "color-mix(in srgb, #ffffff 82%, transparent)",
+        background: active ? "#ffffff" : "color-mix(in srgb, #ffffff 82%, transparent)",
         color: "#1e293b",
-        border: active
-          ? "2px solid var(--accent)"
-          : "2px solid transparent",
-        boxShadow: active
-          ? "0 6px 20px rgba(0,0,0,0.3)"
-          : "0 2px 10px rgba(0,0,0,0.15)",
+        border: active ? "2px solid var(--accent)" : "2px solid transparent",
+        boxShadow: active ? "0 6px 20px rgba(0,0,0,0.3)" : "0 2px 10px rgba(0,0,0,0.15)",
       }}
     >
       <span className="text-xl leading-none">{icon}</span>
@@ -379,11 +343,7 @@ function NavButton({
 function SplashScreen() {
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4">
-      <img
-        src="/icon.png"
-        alt="EdGGe"
-        className="h-16 w-16 rounded-2xl object-cover shadow-2xl shadow-red-500/40"
-      />
+      <img src="/icon.png" alt="EdGGe" className="h-16 w-16 rounded-2xl object-cover shadow-2xl shadow-red-500/40" />
       <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-500 border-t-red-500" />
     </div>
   );
@@ -391,20 +351,35 @@ function SplashScreen() {
 
 function NeedTelegramScreen({
   openLink,
+  sdkPresent,
+  initDataPresent,
+  authError,
 }: {
   openLink: (url: string) => void;
+  sdkPresent: boolean;
+  initDataPresent: boolean;
+  authError: string | null;
 }) {
   return (
     <main className="fade-up flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="text-5xl">📱</div>
       <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>
-        Открой приложение через бота
+        Не удалось войти через Telegram
       </h1>
       <p className="max-w-xs text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-        EdGGe работает внутри Telegram. Зайди в бота, нажми кнопку «Открыть
-        EdGGe» — и регистрация произойдёт автоматически.
+        Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота.
       </p>
-      {BOT_USERNAME ? (
+
+      <div
+        className="w-full max-w-xs rounded-xl border p-3 text-left text-xs leading-6"
+        style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
+      >
+        <div>Telegram SDK: <b>{sdkPresent ? "есть" : "нет"}</b></div>
+        <div>initData: <b>{initDataPresent ? "есть" : "нет"}</b></div>
+        <div>Auth: <b>{authError || "неизвестная ошибка"}</b></div>
+      </div>
+
+      {BOT_USERNAME && (
         <button
           type="button"
           onClick={() => openLink(`https://t.me/${BOT_USERNAME}`)}
@@ -412,15 +387,6 @@ function NeedTelegramScreen({
         >
           🤖 Перейти в бота @{BOT_USERNAME}
         </button>
-      ) : (
-        <div
-          className="mt-2 rounded-xl border px-4 py-3 text-xs"
-          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-        >
-          Задайте <code style={{ color: "var(--accent)" }}>TELEGRAM_BOT_TOKEN</code> и{" "}
-          <code style={{ color: "var(--accent)" }}>NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>{" "}
-          в .env и откройте приложение из бота.
-        </div>
       )}
     </main>
   );
