@@ -1,1 +1,86 @@
+body::after {
+  content: "EdGGe";
+  position: fixed;
+  top: -14px;
+  right: -30px;
+  font-size: 112px;
+  letter-spacing: 4px;
+  color: var(--accent);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+  user-select: none;
+  white-space: nowrap;
+}
 
+/* Рунический знак в углу карточек /
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  position: relative;
+}
+.card::after {
+  content: "ᛟ";
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.08;
+  pointer-events: none;
+  user-select: none;
+}
+
+/ Срезанный угол у главных кнопок — фирменный приём /
+.btn-cut {
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%
+  );
+}
+
+/ Светящееся кольцо логотипа */
+.logo-ring {
+  border: 2px solid var(--accent);
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.85rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition:
+    transform 0.1s ease,
+    opacity 0.15s ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.6;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #ffffff;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.btn-ghost {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
