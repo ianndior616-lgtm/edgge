@@ -258,7 +258,7 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-4 z-40 grid h-10 min-w-10 place-items-center rounded-xl border px-2 backdrop-blur-md transition-transform active:scale-95"
+          className="fixed right-4 top-4 z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
@@ -272,7 +272,11 @@ function App() {
             boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
           }}
         >
-          <span className="relative -top-[2px] text-[22px] font-black leading-none tracking-[2px]">•••</span>
+          <span className="flex items-center justify-center gap-[5px]" aria-hidden="true">
+            <span className="h-[5px] w-[5px] rounded-full bg-current" />
+            <span className="h-[5px] w-[5px] rounded-full bg-current" />
+            <span className="h-[5px] w-[5px] rounded-full bg-current" />
+          </span>
         </button>
       )}
 
