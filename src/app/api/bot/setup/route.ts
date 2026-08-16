@@ -3,12 +3,6 @@ import { isDemoMode, tgApi } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Настройка бота: ставит webhook на /api/bot/webhook и кнопку меню чата,
- * открывающую Mini App. Вызывается один раз после деплоя:
- *   curl https://your-domain/api/bot/setup
- * Адрес приложения берётся из APP_URL или из origin запроса.
- */
 export async function GET(request: Request) {
   const configuredSetupSecret = process.env.BOT_SETUP_SECRET?.trim();
   if (configuredSetupSecret) {
@@ -28,13 +22,22 @@ export async function GET(request: Request) {
     );
   }
 
-  const origin = new URL(request.url).origin;
-  const appUrl = process.env.APP_URL || origin;
+  const origin = new URL(request.url).origin.replace(/\/+$/, "");
+  const appUrl = (process.env.APP_URL || origin).trim().replace(/\/+$/, "");
+
+  if (!appUrl.startsWith("https://")) {
+    return NextResponse.json(
+      { ok: false, reason: "APP_URL must be an https:// URL", appUrl },
+      { status: 500 },
+    );
+  }
+
+  const webhookUrl = `${origin}/api/bot/webhook`;
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || undefined;
 
   const [webhook, menu, me] = await Promise.all([
     tgApi<{ ok: boolean; description?: string }>("setWebhook", {
-      url: `${origin}/api/bot/webhook`,
+      url: webhookUrl,
       ...(secret ? { secret_token: secret } : {}),
     }).catch((e) => ({ ok: false, description: String(e) })),
     tgApi<{ ok: boolean; description?: string }>("setChatMenuButton", {
@@ -52,7 +55,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: webhook.ok && menu.ok,
     appUrl,
-    webhookUrl: `${origin}/api/bot/webhook`,
+    webhookUrl,
     botUsername: me?.result?.username ?? null,
     webhook,
     menuButton: menu,
