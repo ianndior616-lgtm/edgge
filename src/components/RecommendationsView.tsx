@@ -367,10 +367,19 @@ function CardLayer({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
 
-        {profile.isVip && (
-          <span className="absolute left-3 top-3 z-10 rounded-full border border-yellow-300/50 bg-black/55 px-2.5 py-1 text-[10px] font-black tracking-[0.12em] text-yellow-300 backdrop-blur-md">
-            VIP
-          </span>
+        {(profile.isVip || profile.isLookingNow) && (
+          <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
+            {profile.isVip && (
+              <span className="rounded-full border border-yellow-300/50 bg-black/55 px-2.5 py-1 text-[10px] font-black tracking-[0.12em] text-yellow-300 backdrop-blur-md">
+                VIP
+              </span>
+            )}
+            {profile.isLookingNow && (
+              <span className="rounded-full border border-emerald-300/45 bg-black/60 px-2.5 py-1 text-[10px] font-black text-emerald-300 backdrop-blur-md">
+                🟢 Ищу пати сейчас
+              </span>
+            )}
+          </div>
         )}
 
         {onReport && (
