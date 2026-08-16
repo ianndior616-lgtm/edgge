@@ -32,8 +32,10 @@ export type PublicProfile = {
   dotaMainHeroes: string[];
   dotaLastSyncAt: string | null;
   isActive: boolean;
-  /** VIP-статус анкеты. Сейчас автоматически активен у администраторов. */
+  /** VIP-статус анкеты. */
   isVip: boolean;
+  /** Игрок прямо сейчас ищет пати; статус автоматически истекает. */
+  isLookingNow: boolean;
   crownUnlocked: boolean;
   createdAt: string | null;
   /** Средняя оценка после мэтчей */
@@ -59,6 +61,8 @@ export type UserWithProfile = PublicProfile & {
   qualifiedReferralCount: number;
   /** Мой прогресс как реферала: активных дней из 7 */
   referralProgressDays: number;
+  /** До какого момента активен статус «Ищу пати сейчас». */
+  lookingNowUntil: string | null;
 };
 
 export type CheckinResponse = {
@@ -69,6 +73,11 @@ export type CheckinResponse = {
   crownUnlocked: boolean;
   crownJustUnlocked: boolean;
   nextReward: number;
+};
+
+export type LookingNowResponse = {
+  active: boolean;
+  until: string | null;
 };
 
 export type AdminUserView = PublicProfile & {
