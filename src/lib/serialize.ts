@@ -13,6 +13,7 @@ import {
   isUserBanned,
 } from "./wallet";
 import { isVipUser } from "./vip";
+import { isLookingNow, lookingNowUntilOf } from "./looking-now";
 
 const ROLE_IDS = new Set<string>(["pos1", "pos2", "pos3", "pos4", "pos5"]);
 
@@ -49,6 +50,7 @@ export function toPublicProfile(row: User): PublicProfile {
     dotaLastSyncAt: row.dotaLastSyncAt ? row.dotaLastSyncAt.toISOString() : null,
     isActive: row.isActive,
     isVip: row.isAdmin,
+    isLookingNow: false,
     crownUnlocked: row.crownUnlocked,
     createdAt: row.createdAt ? row.createdAt.toISOString() : null,
     averageRating: null,
@@ -100,11 +102,12 @@ export async function ratingStatsOf(tgId: number): Promise<{
 
 export async function toRatedPublicProfile(row: User): Promise<PublicProfile> {
   const profile = toPublicProfile(row);
-  const [stats, isVip] = await Promise.all([
+  const [stats, isVip, lookingNow] = await Promise.all([
     ratingStatsOf(row.tgId),
     isVipUser(row.tgId, row.isAdmin),
+    isLookingNow(row.tgId),
   ]);
-  return { ...profile, ...stats, isVip };
+  return { ...profile, ...stats, isVip, isLookingNow: lookingNow };
 }
 
 export function toUserWithProfile(row: User): UserWithProfile {
@@ -123,6 +126,7 @@ export function toUserWithProfile(row: User): UserWithProfile {
     referralCount: 0,
     qualifiedReferralCount: 0,
     referralProgressDays: 0,
+    lookingNowUntil: null,
     profileComplete: isProfileComplete({ ...profile, lookingFor }),
   };
 }
@@ -130,26 +134,36 @@ export function toUserWithProfile(row: User): UserWithProfile {
 export async function withReferralCount(
   u: UserWithProfile,
 ): Promise<UserWithProfile> {
-  const [referralCount, qualifiedReferralCount, rating, progress, referrer, isVip] =
-    await Promise.all([
-      referralCountOf(u.tgId),
-      countQualifiedReferrals(u.tgId),
-      ratingStatsOf(u.tgId),
-      u.referredByTgId ? countReferralActiveDays(u.tgId) : Promise.resolve(0),
-      u.referredByTgId
-        ? db
-            .select({ code: usersTable.referralCode })
-            .from(usersTable)
-            .where(eq(usersTable.tgId, u.referredByTgId))
-            .limit(1)
-        : Promise.resolve([] as { code: string | null }[]),
-      isVipUser(u.tgId, u.isAdmin),
-    ]);
+  const [
+    referralCount,
+    qualifiedReferralCount,
+    rating,
+    progress,
+    referrer,
+    isVip,
+    lookingNowUntil,
+  ] = await Promise.all([
+    referralCountOf(u.tgId),
+    countQualifiedReferrals(u.tgId),
+    ratingStatsOf(u.tgId),
+    u.referredByTgId ? countReferralActiveDays(u.tgId) : Promise.resolve(0),
+    u.referredByTgId
+      ? db
+          .select({ code: usersTable.referralCode })
+          .from(usersTable)
+          .where(eq(usersTable.tgId, u.referredByTgId))
+          .limit(1)
+      : Promise.resolve([] as { code: string | null }[]),
+    isVipUser(u.tgId, u.isAdmin),
+    lookingNowUntilOf(u.tgId),
+  ]);
 
   return {
     ...u,
     ...rating,
     isVip,
+    isLookingNow: Boolean(lookingNowUntil),
+    lookingNowUntil: lookingNowUntil?.toISOString() ?? null,
     referralCount,
     qualifiedReferralCount,
     referralProgressDays: Math.min(progress, 7),
@@ -159,9 +173,10 @@ export async function withReferralCount(
 
 /** Полная информация о пользователе для админ-панели */
 export async function toAdminUserView(row: User): Promise<AdminUserView> {
-  const [rating, isVip] = await Promise.all([
+  const [rating, isVip, lookingNow] = await Promise.all([
     ratingStatsOf(row.tgId),
     isVipUser(row.tgId, row.isAdmin),
+    isLookingNow(row.tgId),
   ]);
   const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.toISOString() : null;
   const online = row.lastSeenAt
@@ -171,6 +186,7 @@ export async function toAdminUserView(row: User): Promise<AdminUserView> {
   return {
     ...toPublicProfile(row),
     isVip,
+    isLookingNow: lookingNow,
     lastName: row.lastName,
     lookingFor: rolesFrom(row.lookingFor),
     isAdmin: row.isAdmin,
