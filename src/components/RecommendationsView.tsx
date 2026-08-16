@@ -515,6 +515,24 @@ function CardLayer({
           </p>
         )}
 
+        {profile.feedbackTags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {profile.feedbackTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="rounded-full border px-2 py-0.5 text-[9px] font-semibold"
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface2)",
+                  color: "var(--muted)",
+                }}
+              >
+                {tag.label} · {tag.count}×
+              </span>
+            ))}
+          </div>
+        )}
+
         {profile.profileLink && (
           <a
             href={profile.profileLink}
