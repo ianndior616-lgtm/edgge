@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
@@ -11,7 +11,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const session = await resolveSession(request);
   if (!session) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram-бота" },
+      { status: 401 },
+    );
   }
 
   const outgoing = await db
@@ -39,11 +42,19 @@ export async function GET(request: Request) {
     db
       .select({ tgId: ratings.ratedTgId, stars: ratings.stars })
       .from(ratings)
-      .where(and(eq(ratings.raterTgId, session.tgId), inArray(ratings.ratedTgId, matchIds))),
+      .where(
+        and(
+          eq(ratings.raterTgId, session.tgId),
+          inArray(ratings.ratedTgId, matchIds),
+        ),
+      ),
   ]);
 
   const matchedAtByTg = new Map(
-    incoming.map((r) => [r.tgId, r.matchedAt ? r.matchedAt.toISOString() : null]),
+    incoming.map((r) => [
+      r.tgId,
+      r.matchedAt ? r.matchedAt.toISOString() : null,
+    ]),
   );
   const myRatingByTg = new Map(myRatings.map((r) => [r.tgId, r.stars]));
 
@@ -58,21 +69,34 @@ export async function GET(request: Request) {
   return NextResponse.json({ matches });
 }
 
+/**
+ * Убрать мэтч из «Чатов», но НЕ стирать историю пары.
+ * Обе записи likes остаются в БД с liked=false. Поэтому эти люди больше
+ * никогда не попадут друг другу в рекомендации.
+ */
 export async function DELETE(request: Request) {
   const session = await resolveSession(request);
   if (!session) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram-бота" },
+      { status: 401 },
+    );
   }
+
   const tgId = Number(new URL(request.url).searchParams.get("tgId"));
-  if (!Number.isInteger(tgId)) {
+  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === session.tgId) {
     return NextResponse.json({ error: "Некорректный tgId" }, { status: 400 });
   }
 
-  await db.delete(likes).where(
-    or(
-      and(eq(likes.likerTgId, session.tgId), eq(likes.likedTgId, tgId)),
-      and(eq(likes.likerTgId, tgId), eq(likes.likedTgId, session.tgId)),
-    ),
-  );
+  // Одинаковый timestamp используется как маркер закрытой пары, чтобы
+  // «Начать сначала» не удалил эту историю позже.
+  await db.execute(sql`
+    update likes
+       set liked = false,
+           created_at = now()
+     where (liker_tg_id = ${session.tgId} and liked_tg_id = ${tgId})
+        or (liker_tg_id = ${tgId} and liked_tg_id = ${session.tgId})
+  `);
+
   return NextResponse.json({ ok: true });
 }
