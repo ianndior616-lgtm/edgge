@@ -51,7 +51,9 @@ export async function GET(request: Request) {
     .select()
     .from(users)
     .where(and(...conditions, notInArray(users.tgId, reacted)))
-    .orderBy(desc(users.mmr))
+    // VIP сейчас совпадает с админ-entitlement. Сначала VIP, внутри группы — MMR.
+    // Когда подключим покупку VIP, сюда подставится отдельный persisted VIP-флаг.
+    .orderBy(desc(users.isAdmin), desc(users.mmr))
     .limit(30);
 
   return NextResponse.json({
