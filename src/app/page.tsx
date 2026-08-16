@@ -28,7 +28,14 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
 function App() {
   const { ready, initData, isDemo, openLink, webApp } = useTelegram();
-  const { theme, setTheme } = useTheme();
+  const {
+    theme,
+    setTheme,
+    customTheme,
+    setCustomTheme,
+    resetCustomTheme,
+    defaultCustomTheme,
+  } = useTheme();
 
   const [stage, setStage] = useState<Stage>("loading");
   const [me, setMe] = useState<UserWithProfile | null>(null);
@@ -259,6 +266,11 @@ function App() {
                 onChangeTheme={setTheme}
                 isDemo={isDemo}
                 onToast={showToast}
+                fullCustomUnlocked={me.isAdmin}
+                customTheme={customTheme}
+                defaultCustomTheme={defaultCustomTheme}
+                onChangeCustomTheme={setCustomTheme}
+                onResetCustomTheme={resetCustomTheme}
               />
             </ClientErrorBoundary>
           )}
@@ -282,31 +294,32 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border shadow-xl backdrop-blur-md transition-all active:scale-90"
+          className="fixed right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
-                ? "color-mix(in srgb, var(--accent) 22%, var(--surface))"
-                : "color-mix(in srgb, var(--surface) 86%, transparent)",
+                ? "color-mix(in srgb, var(--accent) 14%, var(--surface))"
+                : "color-mix(in srgb, var(--surface) 92%, transparent)",
             borderColor:
               tab === "settings"
-                ? "color-mix(in srgb, var(--accent) 55%, var(--border))"
+                ? "color-mix(in srgb, var(--accent) 40%, var(--border))"
                 : "var(--border)",
-            color: tab === "settings" ? "var(--accent)" : "var(--text)",
+            color: tab === "settings" ? "var(--accent)" : "var(--muted)",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
           }}
         >
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.8"
+            strokeWidth="1.7"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="h-5 w-5"
+            className="h-[19px] w-[19px]"
             aria-hidden="true"
           >
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.56-1.03H5.3v-3h.14A1.7 1.7 0 0 0 7 9.94a1.7 1.7 0 0 0-.34-1.88L6.6 8l2.12-2.12.06.06A1.7 1.7 0 0 0 10.66 6a1.7 1.7 0 0 0 1.03-1.56V4.3h3v.14A1.7 1.7 0 0 0 15.72 6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.38 9.66a1.7 1.7 0 0 0 1.56 1.03h.14v3h-.14A1.7 1.7 0 0 0 19.4 15Z" />
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.05.05-1.91 1.91-.05-.05A1.65 1.65 0 0 0 16 18.4a1.65 1.65 0 0 0-1 1.51V20h-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.05-1.91-1.91.05-.05A1.65 1.65 0 0 0 8.6 15a1.65 1.65 0 0 0-1.51-1H7v-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.05-.05 1.91-1.91.05.05A1.65 1.65 0 0 0 12 7.6a1.65 1.65 0 0 0 1-1.51V6h2v.09A1.65 1.65 0 0 0 16 7.6a1.65 1.65 0 0 0 1.82-.33l.05-.05 1.91 1.91-.05.05A1.65 1.65 0 0 0 19.4 11c.18.62.76 1 1.4 1H21v2h-.2c-.64 0-1.22.38-1.4 1Z" />
           </svg>
         </button>
       )}
