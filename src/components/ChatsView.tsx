@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { formatMmr, roleById } from "@/lib/dota";
-import type { MatchesResponse, MatchItem } from "@/lib/types";
+import type { MatchesResponse, MatchItem, RatingResponse } from "@/lib/types";
 
 /** Вкладка «Чаты»: совпадения — игроки, ответившие взаимностью */
 export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
@@ -15,12 +15,20 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [ratingsByTg, setRatingsByTg] = useState<Record<number, number>>({});
+  const [ratingBusyTgId, setRatingBusyTgId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await api<MatchesResponse>("/api/matches", initData);
       setMatches(data.matches);
+      setRatingsByTg(
+        Object.fromEntries(
+          data.matches
+            .filter((m) => m.myRating != null)
+            .map((m) => [m.profile.tgId, m.myRating as number]),
+        ),
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить чаты");
@@ -37,7 +45,10 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
   const remove = async (tgId: number) => {
     if (confirmId !== tgId) {
       setConfirmId(tgId);
-      window.setTimeout(() => setConfirmId((c) => (c === tgId ? null : c)), 3000);
+      window.setTimeout(
+        () => setConfirmId((c) => (c === tgId ? null : c)),
+        3000,
+      );
       return;
     }
     setConfirmId(null);
@@ -52,14 +63,22 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
   };
 
   const rate = async (tgId: number, stars: number) => {
+    if (ratingsByTg[tgId] || ratingBusyTgId === tgId) return;
+    setRatingBusyTgId(tgId);
     try {
-      await api<{ ok: boolean }>("/api/rating", initData, {
+      const res = await api<RatingResponse>("/api/rating", initData, {
         method: "POST",
         body: { tgId, stars },
       });
-      setRatingsByTg((prev) => ({ ...prev, [tgId]: stars }));
+      setRatingsByTg((prev) => ({
+        ...prev,
+        [tgId]: res.myRating ?? stars,
+      }));
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось поставить оценку");
+    } finally {
+      setRatingBusyTgId(null);
     }
   };
 
@@ -78,10 +97,12 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
           <p className="text-sm">Загружаем совпадения…</p>
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <div className="mb-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           ⚠️ {error}
         </div>
-      ) : matches.length === 0 ? (
+      ) : null}
+
+      {!loading && matches.length === 0 ? (
         <div
           className="fade-up rounded-2xl border border-dashed px-6 py-14 text-center"
           style={{ borderColor: "var(--border)" }}
@@ -91,8 +112,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
             Пока пусто
           </p>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Здесь появятся игроки, с которыми у вас взаимный лайк. Листай
-            рекомендации — и собирай свою команду!
+            Здесь появятся игроки, с которыми у вас взаимный лайк.
           </p>
           <button
             type="button"
@@ -107,6 +127,10 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
           {matches.map((m) => {
             const p = m.profile;
             const role = roleById(p.role);
+            const fixedRating = ratingsByTg[p.tgId] ?? m.myRating ?? 0;
+            const ratingLocked = fixedRating > 0;
+            const ratingBusy = ratingBusyTgId === p.tgId;
+
             return (
               <div
                 key={p.id}
@@ -124,15 +148,13 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                         {p.name ?? p.firstName}
                       </span>
                       {role && (
-                        <span
-                          className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${role.badge}`}
-                        >
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${role.badge}`}>
                           {role.emoji} {role.label}
                         </span>
                       )}
                     </div>
                     <p className="text-xs font-medium" style={{ color: "var(--accent)" }}>
-                      @{p.username ?? "нет_username"}
+                      {p.username ? `@${p.username}` : `Telegram ID: ${p.tgId}`}
                     </p>
                     <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
                       🏅 {formatMmr(p.mmr)} ПТС
@@ -144,6 +166,11 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                           })}`
                         : ""}
                     </p>
+                    {p.averageRating != null && (
+                      <p className="mt-1 text-xs" style={{ color: "#facc15" }}>
+                        ★ {p.averageRating.toFixed(1)} · {p.ratingsCount} оценок
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -152,17 +179,20 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                   style={{ borderColor: "var(--border)", background: "var(--surface2)" }}
                 >
                   <p className="mb-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
-                    Оцени тиммейта после мэтча
+                    {ratingLocked
+                      ? "Твоя оценка сохранена навсегда"
+                      : "Оцени тиммейта после мэтча — изменить потом нельзя"}
                   </p>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((s) => {
-                      const selected = (ratingsByTg[p.tgId] ?? 0) >= s;
+                      const selected = fixedRating >= s;
                       return (
                         <button
                           key={s}
                           type="button"
+                          disabled={ratingLocked || ratingBusy}
                           onClick={() => void rate(p.tgId, s)}
-                          className="text-xl transition-transform active:scale-90"
+                          className="text-xl transition-transform active:scale-90 disabled:cursor-default disabled:opacity-100"
                           aria-label={`Оценить на ${s}`}
                           style={{ color: selected ? "#facc15" : "var(--dim)" }}
                         >
@@ -170,9 +200,9 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                         </button>
                       );
                     })}
-                    {ratingsByTg[p.tgId] && (
+                    {ratingLocked && (
                       <span className="ml-1 text-[11px]" style={{ color: "var(--muted)" }}>
-                        {ratingsByTg[p.tgId]}/5
+                        {fixedRating}/5 🔒
                       </span>
                     )}
                   </div>
@@ -197,8 +227,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                     onClick={() => remove(p.tgId)}
                     className="rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors"
                     style={{
-                      borderColor:
-                        confirmId === p.tgId ? "#ef4444" : "var(--border)",
+                      borderColor: confirmId === p.tgId ? "#ef4444" : "var(--border)",
                       background: "var(--surface2)",
                       color: confirmId === p.tgId ? "#ef4444" : "var(--muted)",
                     }}
