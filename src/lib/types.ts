@@ -32,6 +32,8 @@ export type PublicProfile = {
   dotaMainHeroes: string[];
   dotaLastSyncAt: string | null;
   isActive: boolean;
+  /** VIP-статус анкеты. Сейчас автоматически активен у администраторов. */
+  isVip: boolean;
   crownUnlocked: boolean;
   createdAt: string | null;
   /** Средняя оценка после мэтчей */
