@@ -51,7 +51,6 @@ function App() {
 
   useEffect(() => {
     if (!ready) return;
-
     if (!initData) {
       setAuthError("Telegram не передал initData");
       setStage("need-tg");
@@ -147,15 +146,8 @@ function App() {
       {stage === "onboarding" && me && regMode === null && (
         <main className="fade-up px-4 pb-16 pt-10">
           <div className="mb-8 flex flex-col items-center text-center">
-            <img
-              src="/icon.png"
-              alt="EdGGe"
-              className="logo-ring h-20 w-20 rounded-3xl object-cover"
-            />
-            <h1
-              className="font-display mt-4 text-2xl font-black tracking-wide"
-              style={{ color: "var(--text)" }}
-            >
+            <img src="/icon.png" alt="EdGGe" className="logo-ring h-20 w-20 rounded-3xl object-cover" />
+            <h1 className="font-display mt-4 text-2xl font-black tracking-wide" style={{ color: "var(--text)" }}>
               <AppLogoText size="text-2xl" />
             </h1>
             <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
@@ -171,20 +163,12 @@ function App() {
               ["🎟️", "Рефералы", "Приглашай друзей и получай 10% от их наград"],
               ["🎁", "Ежедневные бонусы", "Заходи каждый день, копи валюту и открывай корону"],
             ].map(([icon, title, text]) => (
-              <div
-                key={title}
-                className="card rounded-2xl p-3.5"
-                style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-              >
+              <div key={title} className="card rounded-2xl p-3.5" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">{icon}</span>
                   <div className="min-w-0 flex-1 text-left">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>
-                      {title}
-                    </p>
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                      {text}
-                    </p>
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{title}</p>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>{text}</p>
                   </div>
                 </div>
               </div>
@@ -195,19 +179,12 @@ function App() {
               onClick={() => setRegMode("user")}
               className="btn-cut mt-2 w-full rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 p-4 text-left shadow-xl shadow-red-500/25 transition-transform active:scale-[0.98]"
             >
-              <span className="block text-lg font-black text-white">
-                🚀 Зарегистрироваться
-              </span>
-              <span className="mt-0.5 block text-xs text-white/85">
-                Заполнить анкету и перейти к рекомендациям
-              </span>
+              <span className="block text-lg font-black text-white">🚀 Зарегистрироваться</span>
+              <span className="mt-0.5 block text-xs text-white/85">Заполнить анкету и перейти к рекомендациям</span>
             </button>
           </div>
 
-          <p
-            className="mt-6 text-center text-[11px] leading-relaxed"
-            style={{ color: "var(--dim)" }}
-          >
+          <p className="mt-6 text-center text-[11px] leading-relaxed" style={{ color: "var(--dim)" }}>
             EdGGe — находи тиммейтов, собирай команду, катай на результат.
           </p>
         </main>
@@ -216,26 +193,13 @@ function App() {
       {stage === "onboarding" && me && regMode !== null && (
         <main className="fade-up px-4 pb-16 pt-6">
           <div className="mb-5 flex flex-col items-center text-center">
-            <img
-              src="/icon.png"
-              alt="EdGGe"
-              className="logo-ring h-16 w-16 rounded-2xl object-cover"
-            />
-            <h1
-              className="font-display mt-3 text-2xl font-black"
-              style={{ color: "var(--text)" }}
-            >
-              Создай анкету
-            </h1>
+            <img src="/icon.png" alt="EdGGe" className="logo-ring h-16 w-16 rounded-2xl object-cover" />
+            <h1 className="font-display mt-3 text-2xl font-black" style={{ color: "var(--text)" }}>Создай анкету</h1>
             <p className="mt-1 max-w-xs text-sm" style={{ color: "var(--muted)" }}>
-              Выбери аватарку, роль и тех, кого хочешь найти, — лента подберёт
-              тиммейтов под тебя.
+              Выбери аватарку, роль и тех, кого хочешь найти, — лента подберёт тиммейтов под тебя.
             </p>
           </div>
-          <div
-            className="card rounded-2xl p-4"
-            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-          >
+          <div className="card rounded-2xl p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <OnboardingForm
               initial={null}
               firstName={me.firstName}
@@ -266,7 +230,7 @@ function App() {
                 onChangeTheme={setTheme}
                 isDemo={isDemo}
                 onToast={showToast}
-                fullCustomUnlocked={me.isAdmin}
+                fullCustomUnlocked={me.isVip}
                 customTheme={customTheme}
                 defaultCustomTheme={defaultCustomTheme}
                 onChangeCustomTheme={setCustomTheme}
@@ -294,7 +258,7 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
+          className="fixed right-4 top-4 z-40 grid h-10 min-w-10 place-items-center rounded-xl border px-2 backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
@@ -308,19 +272,7 @@ function App() {
             boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
           }}
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-[19px] w-[19px]"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.05.05-1.91 1.91-.05-.05A1.65 1.65 0 0 0 16 18.4a1.65 1.65 0 0 0-1 1.51V20h-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.05.05-1.91-1.91.05-.05A1.65 1.65 0 0 0 8.6 15a1.65 1.65 0 0 0-1.51-1H7v-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.05-.05 1.91-1.91.05.05A1.65 1.65 0 0 0 12 7.6a1.65 1.65 0 0 0 1-1.51V6h2v.09A1.65 1.65 0 0 0 16 7.6a1.65 1.65 0 0 0 1.82-.33l.05-.05 1.91 1.91-.05.05A1.65 1.65 0 0 0 19.4 11c.18.62.76 1 1.4 1H21v2h-.2c-.64 0-1.22.38-1.4 1Z" />
-          </svg>
+          <span className="relative -top-[2px] text-[22px] font-black leading-none tracking-[2px]">•••</span>
         </button>
       )}
 
@@ -355,10 +307,7 @@ function App() {
 
       {toast && (
         <div className="fade-up fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
-          <div
-            className="rounded-xl border px-4 py-2.5 text-sm shadow-2xl"
-            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
-          >
+          <div className="rounded-xl border px-4 py-2.5 text-sm shadow-2xl" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}>
             {toast}
           </div>
         </div>
@@ -416,10 +365,7 @@ function NeedTelegramScreen({
         Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота.
       </p>
 
-      <div
-        className="w-full max-w-xs rounded-xl border p-3 text-left text-xs leading-6"
-        style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
-      >
+      <div className="w-full max-w-xs rounded-xl border p-3 text-left text-xs leading-6" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}>
         <div>Telegram SDK: <b>{sdkPresent ? "есть" : "нет"}</b></div>
         <div>initData: <b>{initDataPresent ? "есть" : "нет"}</b></div>
         <div>Auth: <b>{authError || "неизвестная ошибка"}</b></div>
