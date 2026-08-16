@@ -183,16 +183,20 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
   const nopeOpacity = drag.x < 0 ? Math.min(1, -drag.x / 110) : 0;
 
   return (
-    <div className="px-4 pb-24 pt-2">
-      <div className="mx-auto mb-3 flex max-w-md justify-center">
+    <div className="px-4 pb-24 pt-12">
+      <div className="fixed left-1/2 top-[10px] z-30 -translate-x-1/2">
         <button
           type="button"
           onClick={toggleLookingNow}
           disabled={lookingNowBusy}
-          className="rounded-full border px-4 py-2 text-xs font-black shadow-lg transition-all active:scale-95 disabled:opacity-60"
+          className="flex h-8 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[11px] font-black shadow-md backdrop-blur-md transition-all active:scale-95 disabled:opacity-60"
           style={{
-            background: lookingNow ? "rgba(16, 185, 129, 0.14)" : "var(--surface)",
-            borderColor: lookingNow ? "rgba(52, 211, 153, 0.55)" : "var(--border)",
+            background: lookingNow
+              ? "rgba(16, 185, 129, 0.14)"
+              : "color-mix(in srgb, var(--surface) 92%, transparent)",
+            borderColor: lookingNow
+              ? "rgba(52, 211, 153, 0.55)"
+              : "var(--border)",
             color: lookingNow ? "#6ee7b7" : "var(--muted)",
           }}
         >
