@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/db";
 import { resolveUser } from "@/lib/auth";
+import { dayBefore, localDayString, rewardForStreak } from "@/lib/wallet-constants";
 import {
-  dayBefore,
-  localDayString,
-  rewardForStreak,
-} from "@/lib/wallet-constants";
-import { shareWithReferrer } from "@/lib/wallet";
+  checkMilestones,
+  countReferralActiveDays,
+  shareWithReferrer,
+} from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -21,28 +21,20 @@ type LockedUser = {
   referred_by_tg_id: number | null;
 };
 
-/**
- * Ежедневная награда за вход (стрик):
- * день 1 — 5, 2 — 10, 3 — 20, 4 — 25, 5 — 35, 6 — 50, 7 — 100 + корона.
- * Пропуск одного дня сбрасывает серию.
- * Реферер пользователя получает 10% от награды.
- *
- * Важно: день берётся только с сервера. Клиент не может подставить дату.
- * Строка пользователя блокируется SELECT FOR UPDATE, чтобы два параллельных
- * запроса не начислили валюту дважды.
- */
 export async function POST(request: Request) {
   const user = await resolveUser(request);
   if (!user) {
+    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
+  }
+  if (!user.onboardedAt) {
     return NextResponse.json(
-      { error: "Нужно открыть приложение через Telegram-бота" },
-      { status: 401 },
+      { error: "Ежедневные награды доступны после завершения регистрации" },
+      { status: 403 },
     );
   }
 
   const day = localDayString();
   const client = await pool.connect();
-
   let reward = 0;
   let streak = 0;
   let currency = 0;
@@ -67,7 +59,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
     }
 
-    // Уже получал сегодня
     if (row.last_claim_day === day) {
       await client.query("COMMIT");
       return NextResponse.json({
@@ -117,21 +108,22 @@ export async function POST(request: Request) {
   } catch (err) {
     await client.query("ROLLBACK").catch(() => undefined);
     console.error("checkin failed", err);
-    return NextResponse.json(
-      { error: "Не удалось получить ежедневную награду" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Не удалось получить ежедневную награду" }, { status: 500 });
   } finally {
     client.release();
   }
 
-  // Реферер получает 10% от награды (после успешного коммита награды)
   if (referredByTgId) {
-    await shareWithReferrer(
-      referredByTgId,
-      reward,
-      `ежедневная награда ${noteName}`,
-    ).catch(() => undefined);
+    // Реферер начинает получать долю только после 7 активных дней реферала.
+    const activeDays = await countReferralActiveDays(user.tgId).catch(() => 0);
+    if (activeDays >= 7) {
+      await shareWithReferrer(
+        referredByTgId,
+        reward,
+        `ежедневная награда ${noteName}`,
+      ).catch(() => undefined);
+    }
+    await checkMilestones(referredByTgId).catch(() => undefined);
   }
 
   return NextResponse.json({
