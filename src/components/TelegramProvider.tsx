@@ -53,10 +53,10 @@ const TelegramContext = createContext<TelegramContextValue>({
 });
 
 function readLaunchInitData(): string | null {
-  // Telegram normally exposes initData through Telegram.WebApp.initData.
-  // As a fallback, read the raw tgWebAppData launch parameter directly
-  // from the URL. This also survives clients where the SDK initializes late.
-  const sources = [window.location.hash.replace(/^#/, ""), window.location.search.replace(/^\?/, "")];
+  const sources = [
+    window.location.hash.replace(/^#/, ""),
+    window.location.search.replace(/^\?/, ""),
+  ];
 
   for (const source of sources) {
     if (!source) continue;
@@ -119,7 +119,6 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
       setReady(true);
     };
 
-    // Allow Telegram Desktop/Web enough time to inject launch context.
     tryLoad(40);
 
     return () => {
@@ -131,7 +130,15 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
   const isDemo = !initData;
 
   const openLink = (url: string) => {
-    if (webApp?.openTelegramLink) {
+    // openTelegramLink предназначен для https://t.me/... ссылок.
+    // Для пользователей без @username используем tg://user?id=... напрямую —
+    // Telegram Desktop/mobile сам откроет профиль по внутреннему user id.
+    if (url.startsWith("tg://")) {
+      window.location.href = url;
+      return;
+    }
+
+    if (webApp?.openTelegramLink && /^https:\/\/t\.me\//i.test(url)) {
       try {
         webApp.openTelegramLink(url);
         return;
@@ -139,13 +146,12 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
         // fall through
       }
     }
+
     window.location.href = url;
   };
 
   return (
-    <TelegramContext.Provider
-      value={{ ready, initData, isDemo, webApp, openLink }}
-    >
+    <TelegramContext.Provider value={{ ready, initData, isDemo, webApp, openLink }}>
       {children}
     </TelegramContext.Provider>
   );
