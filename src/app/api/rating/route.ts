@@ -8,10 +8,15 @@ import {
   rejectLargeBody,
 } from "@/lib/api-guards";
 import { resolveUser } from "@/lib/auth";
+import {
+  feedbackTagsFromRater,
+  parseFeedbackTags,
+  saveFeedbackTags,
+} from "@/lib/feedback";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_RATING_KEYS = ["tgId", "stars"] as const;
+const ALLOWED_RATING_KEYS = ["tgId", "stars", "tags"] as const;
 
 async function isMatched(a: number, b: number): Promise<boolean> {
   const [ab] = await db
@@ -40,29 +45,38 @@ async function isMatched(a: number, b: number): Promise<boolean> {
 }
 
 async function ratingStats(tgId: number, myTgId: number) {
-  const [stats] = await db
-    .select({ avg: avg(ratings.stars), n: count() })
-    .from(ratings)
-    .where(eq(ratings.ratedTgId, tgId));
-  const [mine] = await db
-    .select({ stars: ratings.stars })
-    .from(ratings)
-    .where(
-      and(
-        eq(ratings.raterTgId, myTgId),
-        eq(ratings.ratedTgId, tgId),
-      ),
-    )
-    .limit(1);
+  const [stats, mine, myFeedbackTags] = await Promise.all([
+    db
+      .select({ avg: avg(ratings.stars), n: count() })
+      .from(ratings)
+      .where(eq(ratings.ratedTgId, tgId))
+      .then((rows) => rows[0]),
+    db
+      .select({ stars: ratings.stars })
+      .from(ratings)
+      .where(
+        and(
+          eq(ratings.raterTgId, myTgId),
+          eq(ratings.ratedTgId, tgId),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0]),
+    feedbackTagsFromRater(myTgId, tgId),
+  ]);
 
   return {
     averageRating: stats?.avg == null ? null : Number(stats.avg),
     ratingsCount: stats?.n ?? 0,
     myRating: mine?.stars ?? null,
+    myFeedbackTags,
   };
 }
 
-/** Поставить оценку тиммейту после мэтча. Оценка одноразовая и неизменяемая. */
+/**
+ * Поставить оценку тиммейту после мэтча.
+ * И звёзды, и выбранные характеристики сохраняются один раз и неизменяемы.
+ */
 export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
@@ -75,9 +89,13 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { tgId?: unknown; stars?: unknown };
+  let body: { tgId?: unknown; stars?: unknown; tags?: unknown };
   try {
-    body = (await request.json()) as { tgId?: unknown; stars?: unknown };
+    body = (await request.json()) as {
+      tgId?: unknown;
+      stars?: unknown;
+      tags?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 });
   }
@@ -87,11 +105,19 @@ export async function POST(request: Request) {
 
   const tgId = Number(body.tgId);
   const stars = Number(body.stars);
+  const tags = parseFeedbackTags(body.tags);
+
   if (!Number.isInteger(tgId) || tgId <= 0 || tgId === me.tgId) {
     return NextResponse.json({ error: "Некорректный пользователь" }, { status: 400 });
   }
   if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
     return NextResponse.json({ error: "Оценка должна быть от 1 до 5" }, { status: 400 });
+  }
+  if (tags == null) {
+    return NextResponse.json(
+      { error: "Можно выбрать не больше двух характеристик" },
+      { status: 400 },
+    );
   }
 
   const [target] = await db
@@ -110,7 +136,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Сначала проверяем явно, чтобы пользователь получил понятное сообщение.
   const [existing] = await db
     .select({ stars: ratings.stars })
     .from(ratings)
@@ -125,19 +150,19 @@ export async function POST(request: Request) {
   if (existing) {
     return NextResponse.json(
       {
-        error: `Ты уже поставил этому игроку ${existing.stars}/5. Оценку изменить нельзя.`,
+        error: `Ты уже поставил этому игроку ${existing.stars}/5. Оценку и характеристики изменить нельзя.`,
       },
       { status: 409 },
     );
   }
 
-  // UNIQUE индекс пары дополнительно защищает от двойного клика/гонки запросов.
   try {
     await db.insert(ratings).values({
       raterTgId: me.tgId,
       ratedTgId: tgId,
       stars,
     });
+    await saveFeedbackTags(me.tgId, tgId, tags);
   } catch {
     return NextResponse.json(
       { error: "Оценка уже сохранена и изменить её нельзя" },
