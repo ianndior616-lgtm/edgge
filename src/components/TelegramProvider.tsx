@@ -19,6 +19,8 @@ export type TelegramWebApp = {
     };
     start_param?: string;
   };
+  version?: string;
+  platform?: string;
   colorScheme?: "light" | "dark";
   ready: () => void;
   expand: () => void;
@@ -35,13 +37,10 @@ declare global {
 }
 
 type TelegramContextValue = {
-  /** true, когда SDK проверен (или стало ясно, что открыто вне Telegram) */
   ready: boolean;
-  /** initData Telegram (null вне Telegram — демо-режим) */
   initData: string | null;
   isDemo: boolean;
   webApp: TelegramWebApp | null;
-  /** Открывает ссылку через Telegram или в новой вкладке */
   openLink: (url: string) => void;
 };
 
@@ -52,6 +51,26 @@ const TelegramContext = createContext<TelegramContextValue>({
   webApp: null,
   openLink: () => {},
 });
+
+function readLaunchInitData(): string | null {
+  // Telegram normally exposes initData through Telegram.WebApp.initData.
+  // As a fallback, read the raw tgWebAppData launch parameter directly
+  // from the URL. This also survives clients where the SDK initializes late.
+  const sources = [window.location.hash.replace(/^#/, ""), window.location.search.replace(/^\?/, "")];
+
+  for (const source of sources) {
+    if (!source) continue;
+    try {
+      const params = new URLSearchParams(source);
+      const raw = params.get("tgWebAppData")?.trim();
+      if (raw) return raw;
+    } catch {
+      // ignore malformed launch params
+    }
+  }
+
+  return null;
+}
 
 export function TelegramProvider({ children }: { children: ReactNode }) {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
@@ -67,6 +86,7 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
 
       const wa = window.Telegram?.WebApp ?? null;
+      const launchInitData = readLaunchInitData();
 
       if (wa) {
         setWebApp(wa);
@@ -79,19 +99,16 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
             wa.setHeaderColor?.("#0b0e17");
             wa.setBackgroundColor?.("#070b14");
           } catch {
-            // не критично
+            // not critical
           }
         }
+      }
 
-        // В некоторых клиентах объект WebApp появляется раньше, чем Telegram
-        // заполняет initData. Не считаем инициализацию завершённой, пока не
-        // дождались самих подписанных данных пользователя.
-        const rawInitData = wa.initData?.trim() ?? "";
-        if (rawInitData) {
-          setInitData(rawInitData);
-          setReady(true);
-          return;
-        }
+      const rawInitData = wa?.initData?.trim() || launchInitData || "";
+      if (rawInitData) {
+        setInitData(rawInitData);
+        setReady(true);
+        return;
       }
 
       if (attemptsLeft > 0) {
@@ -99,12 +116,10 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // SDK/данные так и не появились: считаем, что страница открыта вне
-      // полноценного Telegram Mini App-контекста.
       setReady(true);
     };
 
-    // Ждём до ~10 секунд: Telegram Desktop/Web иногда отдаёт контекст не сразу.
+    // Allow Telegram Desktop/Web enough time to inject launch context.
     tryLoad(40);
 
     return () => {
@@ -119,18 +134,9 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
     if (webApp?.openTelegramLink) {
       try {
         webApp.openTelegramLink(url);
-        // После перехода в чат закрываем текущий Mini App, чтобы пользователь
-        // действительно увидел бота, а не оставался на прежнем экране.
-        window.setTimeout(() => {
-          try {
-            webApp.close?.();
-          } catch {
-            // не критично
-          }
-        }, 150);
         return;
       } catch {
-        // переходим к запасному варианту
+        // fall through
       }
     }
     window.location.href = url;
