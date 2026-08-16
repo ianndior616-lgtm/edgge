@@ -115,8 +115,7 @@ function App() {
             </span>
           ) : (
             <span className="inline-flex items-center gap-1">
-              🎁 +{res.reward} <CoinIcon size={14} /> — день{" "}
-              {res.streakDays} подряд
+              🎁 +{res.reward} <CoinIcon size={14} /> — день {res.streakDays} подряд
             </span>
           ),
         );
@@ -151,9 +150,7 @@ function App() {
               <AppLogoText size="text-2xl" />
             </h1>
             <p className="mt-2 max-w-xs text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-              Привет, {me.firstName || "игрок"}! EdGGe помогает найти тиммейтов
-              для Dota 2: укажи свою роль, кого ищешь, ПТС и профиль — дальше
-              листай анкеты, ставь лайки и общайся после взаимного мэтча.
+              Привет, {me.firstName || "игрок"}! EdGGe помогает найти тиммейтов для Dota 2: укажи свою роль, ПТС и профиль — дальше листай анкеты, ставь лайки и общайся после взаимного мэтча.
             </p>
           </div>
 
@@ -196,7 +193,7 @@ function App() {
             <img src="/icon.png" alt="EdGGe" className="logo-ring h-16 w-16 rounded-2xl object-cover" />
             <h1 className="font-display mt-3 text-2xl font-black" style={{ color: "var(--text)" }}>Создай анкету</h1>
             <p className="mt-1 max-w-xs text-sm" style={{ color: "var(--muted)" }}>
-              Выбери аватарку, роль и тех, кого хочешь найти, — лента подберёт тиммейтов под тебя.
+              Выбери аватарку, роль и заполни данные — лента подберёт тиммейтов по диапазону ПТС.
             </p>
           </div>
           <div className="card rounded-2xl p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -258,7 +255,7 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-4 z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
+          className="fixed right-4 top-[72px] z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
