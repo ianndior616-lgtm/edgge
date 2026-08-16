@@ -190,7 +190,6 @@ select {
   letter-spacing: 0.035em;
 }
 
-
 /* Рунический знак в углу карточек */
 .card {
   background: var(--surface);
@@ -261,4 +260,19 @@ select {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+/* Кнопка меню в правом верхнем углу: чистое троеточие вместо шестерни. */
+button[aria-label="Настройки"] svg {
+  display: none;
+}
+
+button[aria-label="Настройки"]::before {
+  content: "•••";
+  display: block;
+  margin-top: -5px;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
