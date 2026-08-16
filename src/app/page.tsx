@@ -255,7 +255,7 @@ function App() {
           onClick={() => setTab(tab === "settings" ? "recs" : "settings")}
           aria-label="Настройки"
           title="Настройки"
-          className="fixed right-4 top-[72px] z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
+          className="fixed right-4 top-[58px] z-40 flex h-10 w-12 items-center justify-center rounded-xl border backdrop-blur-md transition-transform active:scale-95"
           style={{
             background:
               tab === "settings"
