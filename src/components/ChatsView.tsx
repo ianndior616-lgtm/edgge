@@ -5,6 +5,10 @@ import { Avatar } from "./Avatar";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { formatMmr, roleById } from "@/lib/dota";
+import {
+  FEEDBACK_TAGS,
+  type FeedbackTagId,
+} from "@/lib/feedback-tags";
 import type { MatchesResponse, MatchItem, RatingResponse } from "@/lib/types";
 
 /** Вкладка «Чаты»: совпадения — игроки, ответившие взаимностью */
@@ -15,6 +19,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [ratingsByTg, setRatingsByTg] = useState<Record<number, number>>({});
+  const [feedbackByTg, setFeedbackByTg] = useState<Record<number, FeedbackTagId[]>>({});
   const [ratingBusyTgId, setRatingBusyTgId] = useState<number | null>(null);
 
   const load = async () => {
@@ -27,6 +32,11 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
           data.matches
             .filter((m) => m.myRating != null)
             .map((m) => [m.profile.tgId, m.myRating as number]),
+        ),
+      );
+      setFeedbackByTg(
+        Object.fromEntries(
+          data.matches.map((m) => [m.profile.tgId, m.myFeedbackTags ?? []]),
         ),
       );
       setError(null);
@@ -62,19 +72,41 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
     }
   };
 
+  const toggleFeedbackTag = (tgId: number, tag: FeedbackTagId) => {
+    if (ratingsByTg[tgId] || ratingBusyTgId === tgId) return;
+
+    setFeedbackByTg((prev) => {
+      const current = prev[tgId] ?? [];
+      if (current.includes(tag)) {
+        return { ...prev, [tgId]: current.filter((id) => id !== tag) };
+      }
+      if (current.length >= 2) return prev;
+      return { ...prev, [tgId]: [...current, tag] };
+    });
+  };
+
   const rate = async (tgId: number, stars: number) => {
     if (ratingsByTg[tgId] || ratingBusyTgId === tgId) return;
     setRatingBusyTgId(tgId);
     try {
       const res = await api<RatingResponse>("/api/rating", initData, {
         method: "POST",
-        body: { tgId, stars },
+        body: {
+          tgId,
+          stars,
+          tags: feedbackByTg[tgId] ?? [],
+        },
       });
       setRatingsByTg((prev) => ({
         ...prev,
         [tgId]: res.myRating ?? stars,
       }));
+      setFeedbackByTg((prev) => ({
+        ...prev,
+        [tgId]: res.myFeedbackTags ?? prev[tgId] ?? [],
+      }));
       setError(null);
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось поставить оценку");
     } finally {
@@ -130,6 +162,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
             const fixedRating = ratingsByTg[p.tgId] ?? m.myRating ?? 0;
             const ratingLocked = fixedRating > 0;
             const ratingBusy = ratingBusyTgId === p.tgId;
+            const selectedTags = feedbackByTg[p.tgId] ?? m.myFeedbackTags ?? [];
 
             return (
               <div
@@ -174,16 +207,67 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                   </div>
                 </div>
 
+                {p.feedbackTags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {p.feedbackTags.map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="rounded-full border px-2 py-1 text-[10px] font-semibold"
+                        style={{
+                          borderColor: "var(--border)",
+                          background: "var(--surface2)",
+                          color: "var(--muted)",
+                        }}
+                      >
+                        {tag.label} · {tag.count}×
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div
-                  className="mt-3 rounded-xl border px-3 py-2"
+                  className="mt-3 rounded-xl border px-3 py-3"
                   style={{ borderColor: "var(--border)", background: "var(--surface2)" }}
                 >
-                  <p className="mb-1 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
+                  <p className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
                     {ratingLocked
-                      ? "Твоя оценка сохранена навсегда"
-                      : "Оцени тиммейта после мэтча — изменить потом нельзя"}
+                      ? "Твоя оценка и характеристики сохранены навсегда"
+                      : "Выбери до 2 характеристик и поставь оценку — изменить потом нельзя"}
                   </p>
-                  <div className="flex items-center gap-1.5">
+
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {FEEDBACK_TAGS.map((tag) => {
+                      const selected = selectedTags.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          disabled={ratingLocked || ratingBusy}
+                          onClick={() => toggleFeedbackTag(p.tgId, tag.id)}
+                          className="rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-all disabled:cursor-default disabled:opacity-100"
+                          style={{
+                            borderColor: selected
+                              ? "color-mix(in srgb, var(--accent) 65%, var(--border))"
+                              : "var(--border)",
+                            background: selected
+                              ? "var(--accent-soft)"
+                              : "var(--surface)",
+                            color: selected ? "var(--accent)" : "var(--muted)",
+                          }}
+                        >
+                          {selected ? "✓ " : ""}{tag.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!ratingLocked && (
+                    <p className="mt-2 text-[10px]" style={{ color: "var(--dim)" }}>
+                      Выбрано: {selectedTags.length}/2
+                    </p>
+                  )}
+
+                  <div className="mt-2 flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((s) => {
                       const selected = fixedRating >= s;
                       return (
