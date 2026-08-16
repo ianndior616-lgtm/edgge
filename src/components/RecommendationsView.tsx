@@ -9,6 +9,7 @@ import { formatMmr, medalForMmr, roleById } from "@/lib/dota";
 import { REPORT_REASONS } from "@/lib/report-reasons";
 import type {
   LikeResponse,
+  LookingNowResponse,
   PublicProfile,
   RecommendationsResponse,
   UserWithProfile,
@@ -48,6 +49,8 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
   const [match, setMatch] = useState<PublicProfile | null>(null);
   const [reportProfile, setReportProfile] = useState<PublicProfile | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const [lookingNow, setLookingNowState] = useState(Boolean(me.isLookingNow));
+  const [lookingNowBusy, setLookingNowBusy] = useState(false);
 
   const dragging = useRef(false);
   const start = useRef({ x: 0, y: 0 });
@@ -71,6 +74,37 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await api<LookingNowResponse>("/api/looking-now", initData);
+        if (!cancelled) setLookingNowState(status.active);
+      } catch {
+        // Статус не критичен для загрузки ленты.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initData]);
+
+  const toggleLookingNow = async () => {
+    if (lookingNowBusy) return;
+    setLookingNowBusy(true);
+    try {
+      const status = await api<LookingNowResponse>("/api/looking-now", initData, {
+        method: "POST",
+        body: { enabled: !lookingNow },
+      });
+      setLookingNowState(status.active);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить статус");
+    } finally {
+      setLookingNowBusy(false);
+    }
+  };
 
   const act = (dir: "like" | "nope") => {
     const card = deck[0];
@@ -150,6 +184,26 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
 
   return (
     <div className="px-4 pb-24 pt-4">
+      <div className="mx-auto mb-3 flex max-w-md justify-center">
+        <button
+          type="button"
+          onClick={toggleLookingNow}
+          disabled={lookingNowBusy}
+          className="rounded-full border px-4 py-2 text-xs font-black shadow-lg transition-all active:scale-95 disabled:opacity-60"
+          style={{
+            background: lookingNow ? "rgba(16, 185, 129, 0.14)" : "var(--surface)",
+            borderColor: lookingNow ? "rgba(52, 211, 153, 0.55)" : "var(--border)",
+            color: lookingNow ? "#6ee7b7" : "var(--muted)",
+          }}
+        >
+          {lookingNowBusy
+            ? "Обновляем…"
+            : lookingNow
+              ? "🟢 Ищу пати сейчас · выключить"
+              : "⚪ Ищу пати сейчас · на 2 часа"}
+        </button>
+      </div>
+
       <div className="relative mx-auto h-[48dvh] max-h-[460px] min-h-[320px] w-full max-w-md">
         {loading ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-[var(--muted)]">
