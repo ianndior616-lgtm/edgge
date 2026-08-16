@@ -6,6 +6,24 @@ export type RoleId = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
 /** Идентификаторы тем оформления */
 export type ThemeId = "dark" | "light" | "dota";
 
+export type ProfileStatsPeriod = {
+  views: number;
+  likes: number;
+  likeRate: number;
+};
+
+export type ProfileStats = {
+  views: number;
+  likes: number;
+  matches: number;
+  likeRate: number;
+  /** Детализация по периодам доступна только владельцу с VIP. */
+  vip: {
+    last7Days: ProfileStatsPeriod;
+    last30Days: ProfileStatsPeriod;
+  } | null;
+};
+
 /** Публичная анкета игрока (то, что видят другие) */
 export type PublicProfile = {
   id: number;
@@ -67,6 +85,8 @@ export type UserWithProfile = PublicProfile & {
   referralProgressDays: number;
   /** До какого момента активен статус «Ищу пати сейчас». */
   lookingNowUntil: string | null;
+  /** Приватная статистика, видимая только владельцу анкеты. */
+  profileStats: ProfileStats;
 };
 
 export type CheckinResponse = {

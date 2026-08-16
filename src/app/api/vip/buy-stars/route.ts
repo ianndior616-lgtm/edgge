@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     const result = await tgApi<{ ok?: boolean; result?: string }>("createInvoiceLink", {
       title: "EdGGe VIP — 30 дней",
-      description: "VIP: приоритет анкеты, сообщения без мэтча и полный кастом интерфейса.",
+      description: "VIP: приоритет анкеты, сообщения без мэтча, кастомизация интерфейса и статистика за 7/30 дней.",
       payload: "edgge_vip_monthly",
       provider_token: "",
       currency: "XTR",

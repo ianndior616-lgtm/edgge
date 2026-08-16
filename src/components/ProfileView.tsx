@@ -5,6 +5,7 @@ import { BannerPicker } from "./BannerPicker";
 import { CoinIcon } from "./CoinIcon";
 import { OnboardingForm } from "./OnboardingForm";
 import { ProfileCard } from "./ProfileCard";
+import { ProfileStatsCard } from "./ProfileStatsCard";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { roleById } from "@/lib/dota";
@@ -328,6 +329,13 @@ export function ProfileView({
                 ✏️ Изменить анкету
               </button>
             }
+          />
+
+          <ProfileStatsCard
+            stats={me.profileStats}
+            averageRating={me.averageRating}
+            ratingsCount={me.ratingsCount}
+            isVip={me.isVip}
           />
 
           {/* Картинка карточки */}

@@ -75,6 +75,15 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
     load();
   }, [load]);
 
+  const visibleProfileTgId = deck[0]?.tgId ?? null;
+  useEffect(() => {
+    if (!visibleProfileTgId) return;
+    void api<{ ok: boolean }>("/api/profile-view", initData, {
+      method: "POST",
+      body: { tgId: visibleProfileTgId },
+    }).catch(() => undefined);
+  }, [visibleProfileTgId, initData]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {

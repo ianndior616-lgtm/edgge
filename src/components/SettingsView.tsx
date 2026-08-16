@@ -153,7 +153,7 @@ export function SettingsView({
           <div>
             <h2 className="text-sm font-black text-yellow-400">👑 VIP</h2>
             <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-              Приоритет анкеты в рекомендациях, сообщения без мэтча и полный кастом интерфейса.
+              Приоритет анкеты, сообщения без мэтча, полный кастом интерфейса и расширенная статистика за 7/30 дней.
             </p>
           </div>
           <span className="rounded-full border border-yellow-400/40 bg-yellow-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-400">

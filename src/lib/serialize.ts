@@ -15,6 +15,10 @@ import {
 import { isVipUser } from "./vip";
 import { isLookingNow, lookingNowUntilOf } from "./looking-now";
 import { feedbackTagStatsOf } from "./feedback";
+import {
+  EMPTY_PROFILE_STATS,
+  profileStatsOf,
+} from "./profile-stats";
 
 const ROLE_IDS = new Set<string>(["pos1", "pos2", "pos3", "pos4", "pos5"]);
 
@@ -136,6 +140,7 @@ export function toUserWithProfile(row: User): UserWithProfile {
     qualifiedReferralCount: 0,
     referralProgressDays: 0,
     lookingNowUntil: null,
+    profileStats: EMPTY_PROFILE_STATS,
     profileComplete: isProfileComplete({ ...profile, lookingFor }),
   };
 }
@@ -143,6 +148,10 @@ export function toUserWithProfile(row: User): UserWithProfile {
 export async function withReferralCount(
   u: UserWithProfile,
 ): Promise<UserWithProfile> {
+  const isVipPromise = isVipUser(u.tgId, u.isAdmin);
+  const profileStatsPromise = isVipPromise.then((vip) =>
+    profileStatsOf(u.tgId, vip),
+  );
   const [
     referralCount,
     qualifiedReferralCount,
@@ -152,6 +161,7 @@ export async function withReferralCount(
     isVip,
     lookingNowUntil,
     feedbackTags,
+    profileStats,
   ] = await Promise.all([
     referralCountOf(u.tgId),
     countQualifiedReferrals(u.tgId),
@@ -164,9 +174,10 @@ export async function withReferralCount(
           .where(eq(usersTable.tgId, u.referredByTgId))
           .limit(1)
       : Promise.resolve([] as { code: string | null }[]),
-    isVipUser(u.tgId, u.isAdmin),
+    isVipPromise,
     lookingNowUntilOf(u.tgId),
     feedbackTagStatsOf(u.tgId),
+    profileStatsPromise,
   ]);
 
   return {
@@ -176,6 +187,7 @@ export async function withReferralCount(
     isLookingNow: Boolean(lookingNowUntil),
     lookingNowUntil: lookingNowUntil?.toISOString() ?? null,
     feedbackTags,
+    profileStats,
     referralCount,
     qualifiedReferralCount,
     referralProgressDays: Math.min(progress, 7),
