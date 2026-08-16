@@ -6,6 +6,8 @@ import { isDemoMode, validateInitData } from "./telegram";
 import { getOrCreateReferralCode } from "./wallet";
 import { isConfiguredAdmin } from "./admin";
 
+const USERNAMELESS_ALLOWLIST = new Set<number>([5774035380]);
+
 export type SessionUser = {
   tgId: number;
   username: string | null;
@@ -64,7 +66,6 @@ export async function ensureUser(session: SessionUser) {
     .limit(1);
 
   if (existing[0]) {
-    // Обновляем активность и автоматически выдаём права ID из ADMIN_TG_IDS.
     existing[0].lastSeenAt = new Date();
     const configuredAdmin = isConfiguredAdmin(session.tgId);
     if (configuredAdmin) existing[0].isAdmin = true;
@@ -72,16 +73,25 @@ export async function ensureUser(session: SessionUser) {
       .update(users)
       .set({
         lastSeenAt: existing[0].lastSeenAt,
+        // Если пользователь позже добавил/изменил username — держим его актуальным.
+        username: session.username,
         ...(configuredAdmin ? { isAdmin: true } : {}),
       })
       .where(eq(users.tgId, session.tgId));
 
-    // Досоздаём реферальный код, если его ещё нет (бэкфил старых юзеров)
+    existing[0].username = session.username;
+
     if (!existing[0].referralCode) {
       const code = await getOrCreateReferralCode(session.tgId);
       if (code) existing[0].referralCode = code;
     }
     return existing[0];
+  }
+
+  // Новую регистрацию без Telegram @username не создаём вообще.
+  // Исключение — только заранее разрешённый аккаунт владельца.
+  if (!session.username && !USERNAMELESS_ALLOWLIST.has(session.tgId)) {
+    throw new Error("Telegram username is required for registration");
   }
 
   const [created] = await db
