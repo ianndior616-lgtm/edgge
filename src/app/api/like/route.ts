@@ -8,18 +8,16 @@ import {
   rejectLargeBody,
 } from "@/lib/api-guards";
 import { resolveSession, resolveUser } from "@/lib/auth";
-import { toPublicProfile } from "@/lib/serialize";
+import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
+import {
+  checkMilestones,
+  recordSwipeActivity,
+} from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
-
 const ALLOWED_LIKE_KEYS = ["tgId", "liked"] as const;
 
-/**
- * Свайп: POST { tgId, liked } — лайк или «мимо».
- * Если лайк взаимный — возвращает match:true с анкетой партнёра
- * и уведомляет его через бота.
- */
 export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
@@ -27,16 +25,10 @@ export async function POST(request: Request) {
   const session = await resolveSession(request);
   const me = await resolveUser(request);
   if (!session || !me) {
-    return NextResponse.json(
-      { error: "Нужно открыть приложение через Telegram-бота" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
   }
   if (!me.onboardedAt) {
-    return NextResponse.json(
-      { error: "Сначала заполни свою анкету" },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Сначала заполни свою анкету" }, { status: 403 });
   }
 
   let body: { tgId?: unknown; liked?: unknown };
@@ -45,7 +37,6 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 });
   }
-
   if (!hasOnlyAllowedKeys(body, ALLOWED_LIKE_KEYS)) {
     return NextResponse.json({ error: "Некорректные поля запроса" }, { status: 400 });
   }
@@ -57,36 +48,31 @@ export async function POST(request: Request) {
   if (typeof body.liked !== "boolean") {
     return NextResponse.json({ error: "liked должен быть boolean" }, { status: 400 });
   }
-  const liked = body.liked;
 
   const [target] = await db
     .select()
     .from(users)
-    .where(
-      and(
-        eq(users.tgId, tgId),
-        eq(users.isActive, true),
-        isNotNull(users.onboardedAt),
-      ),
-    )
+    .where(and(eq(users.tgId, tgId), eq(users.isActive, true), isNotNull(users.onboardedAt)))
     .limit(1);
-
-  if (!target) {
-    return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
-  }
+  if (!target) return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
 
   await db
     .insert(likes)
-    .values({ likerTgId: session.tgId, likedTgId: tgId, liked })
+    .values({ likerTgId: session.tgId, likedTgId: tgId, liked: body.liked })
     .onConflictDoUpdate({
       target: [likes.likerTgId, likes.likedTgId],
-      set: { liked, createdAt: new Date() },
+      set: { liked: body.liked, createdAt: new Date() },
     });
 
+  await recordSwipeActivity(session.tgId).catch(() => undefined);
+  if (me.referredByTgId) {
+    await checkMilestones(me.referredByTgId).catch(() => undefined);
+  }
+
   let match = false;
-  if (liked) {
+  if (body.liked) {
     const reciprocal = await db
-      .select()
+      .select({ id: likes.id })
       .from(likes)
       .where(
         and(
@@ -99,42 +85,34 @@ export async function POST(request: Request) {
     match = reciprocal.length > 0;
 
     if (match) {
-      // Уведомляем партнёра через бота (если он запускал бота)
       try {
         const origin = new URL(request.url).origin;
         const appUrl = process.env.APP_URL || origin;
-        const likerName = session.firstName || "Игрок";
+        const likerName = me.name || session.firstName || "Игрок";
         await tgApi("sendMessage", {
           chat_id: tgId,
-          text: `💘 Это взаимно!\n\n${likerName} тоже лайкнул(а) тебя. Загляни в раздел «Чаты», чтобы написать:`,
+          text: `💘 Это взаимно!\n\n${likerName} тоже лайкнул(а) тебя. Открой EdGGe и загляни в «Чаты».`,
           reply_markup: {
-            inline_keyboard: [
-              [{ text: "💬 Открыть чаты", web_app: { url: appUrl } }],
-            ],
+            inline_keyboard: [[{ text: "💬 Открыть EdGGe", web_app: { url: appUrl } }]],
           },
         });
       } catch {
-        // бот недоступен — не критично
+        // уведомление не критично
       }
     }
   }
 
   return NextResponse.json({
     match,
-    matchedProfile: match ? toPublicProfile(target) : undefined,
+    matchedProfile: match ? await toRatedPublicProfile(target) : undefined,
   });
 }
 
-/** Сброс всех реакций пользователя — лента рекомендаций наполняется заново */
 export async function DELETE(request: Request) {
   const session = await resolveSession(request);
   if (!session) {
-    return NextResponse.json(
-      { error: "Нужно открыть приложение через Telegram-бота" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Нужно открыть приложение через Telegram-бота" }, { status: 401 });
   }
-
   await db.delete(likes).where(eq(likes.likerTgId, session.tgId));
   return NextResponse.json({ ok: true });
 }
