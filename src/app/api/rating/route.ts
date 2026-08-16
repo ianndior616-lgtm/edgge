@@ -14,26 +14,27 @@ export const dynamic = "force-dynamic";
 const ALLOWED_RATING_KEYS = ["tgId", "stars"] as const;
 
 async function isMatched(a: number, b: number): Promise<boolean> {
-  const rows = await db
+  const [ab] = await db
     .select({ id: likes.id })
     .from(likes)
     .where(
       and(
+        eq(likes.likerTgId, a),
+        eq(likes.likedTgId, b),
         eq(likes.liked, true),
-        // drizzle не даёт красивого OR с объектом в этой форме — делаем 2 запроса ниже
       ),
     )
-    .limit(1);
-  void rows;
-  const [ab] = await db
-    .select({ id: likes.id })
-    .from(likes)
-    .where(and(eq(likes.likerTgId, a), eq(likes.likedTgId, b), eq(likes.liked, true)))
     .limit(1);
   const [ba] = await db
     .select({ id: likes.id })
     .from(likes)
-    .where(and(eq(likes.likerTgId, b), eq(likes.likedTgId, a), eq(likes.liked, true)))
+    .where(
+      and(
+        eq(likes.likerTgId, b),
+        eq(likes.likedTgId, a),
+        eq(likes.liked, true),
+      ),
+    )
     .limit(1);
   return Boolean(ab && ba);
 }
@@ -46,7 +47,12 @@ async function ratingStats(tgId: number, myTgId: number) {
   const [mine] = await db
     .select({ stars: ratings.stars })
     .from(ratings)
-    .where(and(eq(ratings.raterTgId, myTgId), eq(ratings.ratedTgId, tgId)))
+    .where(
+      and(
+        eq(ratings.raterTgId, myTgId),
+        eq(ratings.ratedTgId, tgId),
+      ),
+    )
     .limit(1);
 
   return {
@@ -56,7 +62,7 @@ async function ratingStats(tgId: number, myTgId: number) {
   };
 }
 
-/** Поставить/обновить оценку тиммейта после мэтча */
+/** Поставить оценку тиммейту после мэтча. Оценка одноразовая и неизменяемая. */
 export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
@@ -93,7 +99,9 @@ export async function POST(request: Request) {
     .from(users)
     .where(eq(users.tgId, tgId))
     .limit(1);
-  if (!target) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  if (!target) {
+    return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  }
 
   if (!(await isMatched(me.tgId, tgId))) {
     return NextResponse.json(
@@ -102,13 +110,40 @@ export async function POST(request: Request) {
     );
   }
 
-  await db
-    .insert(ratings)
-    .values({ raterTgId: me.tgId, ratedTgId: tgId, stars })
-    .onConflictDoUpdate({
-      target: [ratings.raterTgId, ratings.ratedTgId],
-      set: { stars, updatedAt: new Date() },
+  // Сначала проверяем явно, чтобы пользователь получил понятное сообщение.
+  const [existing] = await db
+    .select({ stars: ratings.stars })
+    .from(ratings)
+    .where(
+      and(
+        eq(ratings.raterTgId, me.tgId),
+        eq(ratings.ratedTgId, tgId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    return NextResponse.json(
+      {
+        error: `Ты уже поставил этому игроку ${existing.stars}/5. Оценку изменить нельзя.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  // UNIQUE индекс пары дополнительно защищает от двойного клика/гонки запросов.
+  try {
+    await db.insert(ratings).values({
+      raterTgId: me.tgId,
+      ratedTgId: tgId,
+      stars,
     });
+  } catch {
+    return NextResponse.json(
+      { error: "Оценка уже сохранена и изменить её нельзя" },
+      { status: 409 },
+    );
+  }
 
   const stats = await ratingStats(tgId, me.tgId);
   return NextResponse.json({ ok: true, ...stats });
