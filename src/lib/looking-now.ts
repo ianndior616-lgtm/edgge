@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { rewardsLog } from "@/db/schema";
 
@@ -16,7 +16,12 @@ export async function lookingNowUntilOf(tgId: number): Promise<Date | null> {
   const [row] = await db
     .select({ note: rewardsLog.note })
     .from(rewardsLog)
-    .where(eq(rewardsLog.tgId, tgId))
+    .where(
+      and(
+        eq(rewardsLog.tgId, tgId),
+        eq(rewardsLog.kind, LOOKING_NOW_KIND),
+      ),
+    )
     .orderBy(desc(rewardsLog.createdAt))
     .limit(1);
 
