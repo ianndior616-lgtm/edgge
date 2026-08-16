@@ -269,11 +269,15 @@ function App() {
             boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
           }}
         >
-          <span className="flex items-center justify-center gap-[5px]" aria-hidden="true">
-            <span className="h-[5px] w-[5px] rounded-full bg-current" />
-            <span className="h-[5px] w-[5px] rounded-full bg-current" />
-            <span className="h-[5px] w-[5px] rounded-full bg-current" />
-          </span>
+          <svg
+            viewBox="0 0 30 10"
+            className="h-[10px] w-[30px]"
+            aria-hidden="true"
+          >
+            <circle cx="5" cy="5" r="2.4" fill="currentColor" />
+            <circle cx="15" cy="5" r="2.4" fill="currentColor" />
+            <circle cx="25" cy="5" r="2.4" fill="currentColor" />
+          </svg>
         </button>
       )}
 
