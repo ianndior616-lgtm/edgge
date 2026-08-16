@@ -7,7 +7,11 @@ import type {
   RoleId,
   UserWithProfile,
 } from "./types";
-import { countQualifiedReferrals } from "./wallet";
+import {
+  countQualifiedReferrals,
+  countReferralActiveDays,
+  isUserBanned,
+} from "./wallet";
 
 const ROLE_IDS = new Set<string>(["pos1", "pos2", "pos3", "pos4", "pos5"]);
 
@@ -45,6 +49,8 @@ export function toPublicProfile(row: User): PublicProfile {
     isActive: row.isActive,
     crownUnlocked: row.crownUnlocked,
     createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    averageRating: null,
+    ratingsCount: 0,
   };
 }
 
@@ -61,7 +67,6 @@ export function isProfileComplete(
   );
 }
 
-/** Счётчик рефералов пользователя */
 export async function referralCountOf(tgId: number): Promise<number> {
   const [row] = await db
     .select({ n: count() })
@@ -78,7 +83,7 @@ async function reportCountOf(tgId: number): Promise<number> {
   return row?.n ?? 0;
 }
 
-async function ratingStatsOf(tgId: number): Promise<{
+export async function ratingStatsOf(tgId: number): Promise<{
   averageRating: number | null;
   ratingsCount: number;
 }> {
@@ -90,6 +95,12 @@ async function ratingStatsOf(tgId: number): Promise<{
     averageRating: row?.avg == null ? null : Number(row.avg),
     ratingsCount: row?.n ?? 0,
   };
+}
+
+export async function toRatedPublicProfile(row: User): Promise<PublicProfile> {
+  const profile = toPublicProfile(row);
+  const stats = await ratingStatsOf(row.tgId);
+  return { ...profile, ...stats };
 }
 
 export function toUserWithProfile(row: User): UserWithProfile {
@@ -104,28 +115,53 @@ export function toUserWithProfile(row: User): UserWithProfile {
     lastClaimDay: row.lastClaimDay,
     referralCode: row.referralCode,
     referredByTgId: row.referredByTgId,
+    referredByCode: null,
     referralCount: 0,
     qualifiedReferralCount: 0,
+    referralProgressDays: 0,
     profileComplete: isProfileComplete({ ...profile, lookingFor }),
   };
 }
 
-/** Обогащает профиль пользователя счётчиками рефералов */
 export async function withReferralCount(
   u: UserWithProfile,
 ): Promise<UserWithProfile> {
-  const [referralCount, qualifiedReferralCount] = await Promise.all([
-    referralCountOf(u.tgId),
-    countQualifiedReferrals(u.tgId),
-  ]);
-  return { ...u, referralCount, qualifiedReferralCount };
+  const [referralCount, qualifiedReferralCount, rating, progress, referrer] =
+    await Promise.all([
+      referralCountOf(u.tgId),
+      countQualifiedReferrals(u.tgId),
+      ratingStatsOf(u.tgId),
+      u.referredByTgId ? countReferralActiveDays(u.tgId) : Promise.resolve(0),
+      u.referredByTgId
+        ? db
+            .select({ code: usersTable.referralCode })
+            .from(usersTable)
+            .where(eq(usersTable.tgId, u.referredByTgId))
+            .limit(1)
+        : Promise.resolve([] as { code: string | null }[]),
+    ]);
+
+  return {
+    ...u,
+    ...rating,
+    referralCount,
+    qualifiedReferralCount,
+    referralProgressDays: Math.min(progress, 7),
+    referredByCode: referrer[0]?.code ?? null,
+  };
 }
 
-/** Полная информация о пользователе для админ-панели */
 export async function toAdminUserView(
   row: User,
 ): Promise<AdminUserView> {
-  const rating = await ratingStatsOf(row.tgId);
+  const [rating, reportCount, referralCount, qualifiedReferralCount, banned] =
+    await Promise.all([
+      ratingStatsOf(row.tgId),
+      reportCountOf(row.tgId),
+      referralCountOf(row.tgId),
+      countQualifiedReferrals(row.tgId),
+      isUserBanned(row.tgId),
+    ]);
   const lastSeenAt = row.lastSeenAt ? row.lastSeenAt.toISOString() : null;
   const online = row.lastSeenAt
     ? Date.now() - row.lastSeenAt.getTime() < 5 * 60 * 1000
@@ -133,22 +169,22 @@ export async function toAdminUserView(
 
   return {
     ...toPublicProfile(row),
+    ...rating,
     lastName: row.lastName,
     lookingFor: rolesFrom(row.lookingFor),
     isAdmin: row.isAdmin,
+    isBanned: banned,
     onboardedAt: row.onboardedAt ? row.onboardedAt.toISOString() : null,
     updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
     currency: row.currency,
     streakDays: row.streakDays,
     lastClaimDay: row.lastClaimDay,
     referralCode: row.referralCode,
-    referralCount: await referralCountOf(row.tgId),
-    qualifiedReferralCount: await countQualifiedReferrals(row.tgId),
+    referralCount,
+    qualifiedReferralCount,
     lastSeenAt,
     online,
     arcanaIssued: row.arcanaIssued,
-    reportCount: await reportCountOf(row.tgId),
-    averageRating: rating.averageRating,
-    ratingsCount: rating.ratingsCount,
+    reportCount,
   };
 }
