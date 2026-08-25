@@ -27,6 +27,14 @@ https://<your-domain>/api/health
 Успешный ответ содержит `{"ok":true,"database":"connected"}`. Если база не
 настроена, endpoint вернёт понятный статус `503` и название требуемых переменных.
 
+## Публичный доступ для Telegram
+
+URL, указанный в `APP_URL`, должен быть доступен **без Vercel Login / Deployment
+Protection**. Telegram WebView не сможет пройти экран Vercel SSO, поэтому в
+**Project → Settings → Deployment Protection** отключите защиту для production
+(и для preview, если используете preview URL в боте), либо используйте публичный
+production-домен. Не указывайте в боте защищённый preview URL.
+
 ## Telegram production-настройки
 
 Добавьте в Vercel следующие переменные:
