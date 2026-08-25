@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, type NewUser } from "@/db/schema";
@@ -12,22 +12,44 @@ import { resolveUser } from "@/lib/auth";
 import { normalizeLookingFor } from "@/lib/avatars";
 import { ROLE_IDS } from "@/lib/dota";
 import { toAdminUserView } from "@/lib/serialize";
-import { logReward } from "@/lib/wallet";
+import {
+  isUserBanned,
+  logReward,
+  setUserBanned,
+} from "@/lib/wallet";
 import type { AdminUserUpdate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ tgId: string }> };
 
-function bad(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 });
+const ALLOWED_ADMIN_UPDATE_KEYS = [
+  "name",
+  "role",
+  "lookingFor",
+  "mmr",
+  "age",
+  "profileLink",
+  "description",
+  "isActive",
+  "isBanned",
+  "arcanaIssued",
+] as const;
+
+function bad(message: string, status = 400) {
+  return NextResponse.json({ error: message }, { status });
 }
 
 /**
- * Админ-панель: редактирование анкеты любого пользователя
- * (имя, роль, кого ищет, ПТС, возраст, ссылка, описание, видимость).
+ * Админ-панель: редактирование и модерация анкеты любого пользователя.
+ * Бан хранится отдельным событием модерации, а также сразу скрывает анкету
+ * из рекомендаций. Разбан не включает видимость автоматически: её можно
+ * вернуть в этом же запросе или отдельной кнопкой «Показать».
  */
 export async function PUT(request: Request, ctx: RouteContext) {
+  const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
+  if (tooLarge) return tooLarge;
+
   const admin = await resolveUser(request);
   if (!admin) {
     return NextResponse.json(
@@ -44,86 +66,137 @@ export async function PUT(request: Request, ctx: RouteContext) {
 
   const { tgId: rawTgId } = await ctx.params;
   const targetTgId = Number(rawTgId);
-  if (!Number.isInteger(targetTgId)) {
+  if (!Number.isSafeInteger(targetTgId) || targetTgId <= 0) {
     return bad("Некорректный tgId");
   }
 
-  let body: AdminUserUpdate;
+  let body: unknown;
   try {
-    body = (await request.json()) as AdminUserUpdate;
+    body = await request.json();
   } catch {
     return bad("Некорректный JSON");
   }
+  if (!hasOnlyAllowedKeys(body, ALLOWED_ADMIN_UPDATE_KEYS)) {
+    return bad("Некорректные поля запроса");
+  }
+  const update = body as AdminUserUpdate;
+
+  const [target] = await db
+    .select()
+    .from(users)
+    .where(eq(users.tgId, targetTgId))
+    .limit(1);
+  if (!target) {
+    return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  }
+
+  const currentlyBanned = await isUserBanned(targetTgId);
+  let requestedBanned: boolean | null = null;
+  if ("isBanned" in update) {
+    if (typeof update.isBanned !== "boolean") {
+      return bad("isBanned должен быть boolean");
+    }
+    if (update.isBanned && targetTgId === admin.tgId) {
+      return bad("Нельзя заблокировать собственную анкету");
+    }
+    requestedBanned = update.isBanned;
+  }
+  const willBeBanned = requestedBanned ?? currentlyBanned;
 
   const patch: Partial<NewUser> = {};
 
-  if ("name" in body) {
-    if (typeof body.name !== "string" || body.name.trim().length === 0)
+  if ("name" in update) {
+    if (typeof update.name !== "string" || update.name.trim().length === 0)
       return bad("Укажи имя");
-    if (body.name.trim().length > 40) return bad("Имя слишком длинное (до 40 символов)");
-    patch.name = body.name.trim();
+    if (update.name.trim().length > 40)
+      return bad("Имя слишком длинное (до 40 символов)");
+    patch.name = update.name.trim();
   }
 
-  if ("role" in body) {
-    if (typeof body.role !== "string" || !ROLE_IDS.has(body.role))
+  if ("role" in update) {
+    if (typeof update.role !== "string" || !ROLE_IDS.has(update.role))
       return bad("Выбери роль (позиция 1–5)");
-    patch.role = body.role as NewUser["role"];
+    patch.role = update.role as NewUser["role"];
   }
 
-  if ("lookingFor" in body) {
-    const roles = normalizeLookingFor(body.lookingFor);
+  if ("lookingFor" in update) {
+    const roles = normalizeLookingFor(update.lookingFor);
     if (roles === null) return bad("Выбери до 5 ролей из списка");
     patch.lookingFor = roles;
   }
 
-  if ("mmr" in body) {
-    const n = Number(body.mmr);
+  if ("mmr" in update) {
+    const n = Number(update.mmr);
     if (!Number.isInteger(n) || n < 0 || n > 20000)
       return bad("ПТС должно быть числом от 0 до 20000");
     patch.mmr = n;
   }
 
-  if ("age" in body) {
-    const n = Number(body.age);
+  if ("age" in update) {
+    const n = Number(update.age);
     if (!Number.isInteger(n) || n < 12 || n > 80)
       return bad("Возраст должен быть от 12 до 80 лет");
     patch.age = n;
   }
 
-  if ("profileLink" in body) {
-    const link = normalizeHttpUrl(body.profileLink);
+  if ("profileLink" in update) {
+    const link = normalizeHttpUrl(update.profileLink);
     if (link === false) {
-      return bad("Ссылка на профиль должна быть безопасной http:// или https:// ссылкой");
+      return bad(
+        "Ссылка на профиль должна быть безопасной http:// или https:// ссылкой",
+      );
     }
     patch.profileLink = link;
   }
 
-  if ("description" in body) {
-    const desc = typeof body.description === "string" ? body.description.trim() : "";
-    if (desc.length > 300) return bad("Описание слишком длинное (до 300 символов)");
-    patch.description = desc || null;
+  if ("description" in update) {
+    const description =
+      typeof update.description === "string" ? update.description.trim() : "";
+    if (description.length > 300)
+      return bad("Описание слишком длинное (до 300 символов)");
+    patch.description = description || null;
   }
 
-  if ("isActive" in body) {
-    if (typeof body.isActive !== "boolean") return bad("isActive должен быть boolean");
-    patch.isActive = body.isActive;
+  if ("isActive" in update) {
+    if (typeof update.isActive !== "boolean")
+      return bad("isActive должен быть boolean");
+    if (update.isActive && willBeBanned) {
+      return bad("Сначала разбань анкету, затем включи её видимость", 409);
+    }
+    patch.isActive = update.isActive;
   }
 
-  // Ручная выдача арканы (50 активных рефералов со стриком 7+ дней) — только администратором
-  if ("arcanaIssued" in body) {
-    if (typeof body.arcanaIssued !== "boolean")
+  // Блокировка всегда скрывает профиль, даже если клиент не передал isActive.
+  if (requestedBanned === true) patch.isActive = false;
+
+  // Ручная выдача арканы (50 активных рефералов со стриком 7+ дней).
+  if ("arcanaIssued" in update) {
+    if (typeof update.arcanaIssued !== "boolean")
       return bad("arcanaIssued должен быть boolean");
-    patch.arcanaIssued = body.arcanaIssued;
+    patch.arcanaIssued = update.arcanaIssued;
   }
 
-  const [updated] = await db
-    .update(users)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(eq(users.tgId, targetTgId))
-    .returning();
+  let updated = target;
+  if (Object.keys(patch).length > 0) {
+    const [changed] = await db
+      .update(users)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(users.tgId, targetTgId))
+      .returning();
+    if (!changed) {
+      return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+    }
+    updated = changed;
+  }
 
-  if (!updated) {
-    return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  if (requestedBanned !== null && requestedBanned !== currentlyBanned) {
+    await setUserBanned(targetTgId, requestedBanned);
+    const [fresh] = await db
+      .select()
+      .from(users)
+      .where(eq(users.tgId, targetTgId))
+      .limit(1);
+    if (fresh) updated = fresh;
   }
 
   if (patch.arcanaIssued === true) {

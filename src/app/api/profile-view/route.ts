@@ -7,7 +7,7 @@ import {
   hasOnlyAllowedKeys,
   rejectLargeBody,
 } from "@/lib/api-guards";
-import { resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { recordProfileView } from "@/lib/profile-stats";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +17,8 @@ export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
 
-  const session = await resolveSession(request);
-  if (!session) {
+  const me = await resolveUser(request);
+  if (!me) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   }
 
   const tgId = Number(body.tgId);
-  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === session.tgId) {
+  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === me.tgId) {
     return NextResponse.json({ error: "Некорректная анкета" }, { status: 400 });
   }
 
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       and(
         eq(users.tgId, tgId),
         eq(users.isActive, true),
+        isNotNull(users.username),
         isNotNull(users.onboardedAt),
       ),
     )
@@ -57,6 +58,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
   }
 
-  await recordProfileView(session.tgId, tgId);
+  await recordProfileView(me.tgId, tgId);
   return NextResponse.json({ ok: true });
 }

@@ -1,4 +1,4 @@
-import { and, avg, count, eq } from "drizzle-orm";
+import { and, avg, count, eq, isNotNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
@@ -13,6 +13,7 @@ import {
   parseFeedbackTags,
   saveFeedbackTags,
 } from "@/lib/feedback";
+import { isUserBanned } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -123,9 +124,9 @@ export async function POST(request: Request) {
   const [target] = await db
     .select({ tgId: users.tgId })
     .from(users)
-    .where(eq(users.tgId, tgId))
+    .where(and(eq(users.tgId, tgId), isNotNull(users.username)))
     .limit(1);
-  if (!target) {
+  if (!target || (await isUserBanned(tgId))) {
     return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
   }
 

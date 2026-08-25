@@ -23,15 +23,12 @@ export function ProfileCard({
   const medal = profile.mmr != null ? medalForMmr(profile.mmr) : null;
 
   const handleContact = () => {
+    if (!profile.username) return;
     if (onContact) {
       onContact();
       return;
     }
-    openLink(
-      profile.username
-        ? `https://t.me/${profile.username}`
-        : `tg://user?id=${profile.tgId}`,
-    );
+    openLink(`https://t.me/${profile.username}`);
   };
 
   const bannerImage =
@@ -137,7 +134,7 @@ export function ProfileCard({
 
       {/* Действия */}
       <div className="mt-4 flex items-center gap-2">
-        {showContact && (
+        {showContact && profile.username && (
           <button
             type="button"
             onClick={handleContact}

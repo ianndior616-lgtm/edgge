@@ -130,14 +130,8 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
   const isDemo = !initData;
 
   const openLink = (url: string) => {
-    // openTelegramLink предназначен для https://t.me/... ссылок.
-    // Для пользователей без @username используем tg://user?id=... напрямую —
-    // Telegram Desktop/mobile сам откроет профиль по внутреннему user id.
-    if (url.startsWith("tg://")) {
-      window.location.href = url;
-      return;
-    }
-
+    // Контакты игроков открываются только по публичным https://t.me/... ссылкам:
+    // регистрация без @username намеренно не допускается.
     if (webApp?.openTelegramLink && /^https:\/\/t\.me\//i.test(url)) {
       try {
         webApp.openTelegramLink(url);

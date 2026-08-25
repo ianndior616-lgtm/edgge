@@ -8,13 +8,13 @@ import {
   normalizeHttpUrl,
   rejectLargeBody,
 } from "@/lib/api-guards";
-import { ensureUser, resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { isValidAvatar, normalizeLookingFor } from "@/lib/avatars";
 import { isPaletteId } from "@/lib/banners";
 import { ROLE_IDS } from "@/lib/dota";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { REFERRAL_CODE_RE } from "@/lib/wallet-constants";
-import { checkMilestones, isUserBanned } from "@/lib/wallet";
+import { checkMilestones } from "@/lib/wallet";
 import type { ProfileUpdate } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -43,14 +43,13 @@ export async function PUT(request: Request) {
   const tooLarge = rejectLargeBody(request, PROFILE_BODY_LIMIT);
   if (tooLarge) return tooLarge;
 
-  const session = await resolveSession(request);
-  if (!session) {
+  const current = await resolveUser(request);
+  if (!current) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
     );
   }
-  const current = await ensureUser(session);
 
   let body: unknown;
   try {
@@ -78,7 +77,7 @@ export async function PUT(request: Request) {
         .where(eq(users.referralCode, code))
         .limit(1);
       if (!friend) return bad("Такого кода не существует — проверь написание");
-      if (friend.tgId === session.tgId) return bad("Нельзя ввести собственный код");
+      if (friend.tgId === current.tgId) return bad("Нельзя ввести собственный код");
       if (current.referredByTgId) return bad("Код друга уже привязан к твоей анкете");
       pendingReferrerTgId = friend.tgId;
     }
@@ -157,9 +156,6 @@ export async function PUT(request: Request) {
 
   if ("isActive" in b) {
     if (typeof b.isActive !== "boolean") return bad("isActive должен быть boolean");
-    if (b.isActive && (await isUserBanned(session.tgId))) {
-      return NextResponse.json({ error: "Анкета заблокирована администратором" }, { status: 403 });
-    }
     patch.isActive = b.isActive;
   }
 
@@ -172,8 +168,8 @@ export async function PUT(request: Request) {
     })
     .where(
       pendingReferrerTgId
-        ? and(eq(users.tgId, session.tgId), isNull(users.referredByTgId))
-        : eq(users.tgId, session.tgId),
+        ? and(eq(users.tgId, current.tgId), isNull(users.referredByTgId))
+        : eq(users.tgId, current.tgId),
     )
     .returning();
 
@@ -187,7 +183,7 @@ export async function PUT(request: Request) {
     const [marked] = await db
       .update(users)
       .set({ onboardedAt: new Date() })
-      .where(eq(users.tgId, session.tgId))
+      .where(eq(users.tgId, current.tgId))
       .returning();
     finalRow = marked;
   }

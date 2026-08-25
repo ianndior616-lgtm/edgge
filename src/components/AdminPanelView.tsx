@@ -13,7 +13,7 @@ import type { AdminReportsResponse, AdminUsersResponse, AdminUserView, ReportVie
 const INPUT_CLS =
   "w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]";
 
-/** Админская панель: поиск, просмотр, редактирование и скрытие анкет */
+/** Админская панель: поиск, редактирование, скрытие и блокировка анкет. */
 export function AdminPanelView() {
   const { initData } = useTelegram();
   const [q, setQ] = useState("");
@@ -23,6 +23,8 @@ export function AdminPanelView() {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [banConfirmId, setBanConfirmId] = useState<number | null>(null);
+  const [actionBusyTgId, setActionBusyTgId] = useState<number | null>(null);
 
   const load = async (query: string) => {
     setLoading(true);
@@ -53,16 +55,54 @@ export function AdminPanelView() {
   }, [q, initData]);
 
   const toggleActive = async (u: AdminUserView) => {
+    if (u.isBanned || actionBusyTgId === u.tgId) return;
+    setActionBusyTgId(u.tgId);
     try {
-      await api<{ user: AdminUserView }>(`/api/admin/users/${u.tgId}`, initData, {
-        method: "PUT",
-        body: { isActive: !u.isActive },
-      });
-      setUsers((prev) =>
-        prev.map((x) => (x.tgId === u.tgId ? { ...x, isActive: !u.isActive } : x)),
+      const res = await api<{ user: AdminUserView }>(
+        `/api/admin/users/${u.tgId}`,
+        initData,
+        { method: "PUT", body: { isActive: !u.isActive } },
       );
-    } catch {
-      // ignore
+      setUsers((prev) =>
+        prev.map((x) => (x.tgId === u.tgId ? res.user : x)),
+      );
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить видимость");
+    } finally {
+      setActionBusyTgId(null);
+    }
+  };
+
+  const toggleBan = async (u: AdminUserView) => {
+    if (actionBusyTgId === u.tgId) return;
+
+    // Блокировка — разрушительное действие, поэтому просим второй тап.
+    if (!u.isBanned && banConfirmId !== u.tgId) {
+      setBanConfirmId(u.tgId);
+      window.setTimeout(
+        () => setBanConfirmId((id) => (id === u.tgId ? null : id)),
+        3500,
+      );
+      return;
+    }
+
+    setActionBusyTgId(u.tgId);
+    setBanConfirmId(null);
+    try {
+      const res = await api<{ user: AdminUserView }>(
+        `/api/admin/users/${u.tgId}`,
+        initData,
+        { method: "PUT", body: { isBanned: !u.isBanned } },
+      );
+      setUsers((prev) =>
+        prev.map((x) => (x.tgId === u.tgId ? res.user : x)),
+      );
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить блокировку");
+    } finally {
+      setActionBusyTgId(null);
     }
   };
 
@@ -88,7 +128,7 @@ export function AdminPanelView() {
         🛡️ Админская панель
       </h1>
       <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
-        Все зарегистрированные пользователи: поиск, редактирование, скрытие.
+        Все зарегистрированные пользователи: поиск, редактирование, скрытие и блокировка.
       </p>
 
       {/* Поиск */}
@@ -143,6 +183,7 @@ export function AdminPanelView() {
             const expanded = expandedId === u.id;
             const editing = editingId === u.id;
             const role = roleById(u.role);
+            const actionBusy = actionBusyTgId === u.tgId;
             return (
               <div
                 key={u.id}
@@ -190,6 +231,11 @@ export function AdminPanelView() {
                     >
                       {u.isActive ? "Активна" : "Скрыта"}
                     </span>
+                    {u.isBanned && (
+                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                        🚫 Забанена
+                      </span>
+                    )}
                     {u.isAdmin && (
                       <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-400">
                         🛡️ Админ
@@ -208,6 +254,10 @@ export function AdminPanelView() {
                     <InfoRow label="Имя" value={u.name ?? "—"} />
                     {u.lastName && <InfoRow label="Фамилия" value={u.lastName} />}
                     <InfoRow label="Username" value={`@${u.username ?? "нет"}`} />
+                    <InfoRow
+                      label="Модерация"
+                      value={u.isBanned ? "🚫 анкета заблокирована" : "✅ без ограничений"}
+                    />
                     <InfoRow
                       label="Баланс"
                       value={
@@ -322,29 +372,62 @@ export function AdminPanelView() {
                       </button>
                     ) : null}
 
-                    <div className="flex gap-2 pt-1">
+                    {u.isBanned && (
+                      <p
+                        className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] leading-relaxed text-red-400"
+                      >
+                        Блокировка скрывает анкету, отключает действия в приложении и убирает её из старых мэтчей.
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         type="button"
+                        disabled={actionBusy}
                         onClick={() => {
                           setEditingId(u.id);
                           setExpandedId(null);
                         }}
-                        className="flex-1 rounded-xl border px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-80"
+                        className="rounded-xl border px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
                         style={{ borderColor: "var(--border)", background: "var(--surface2)", color: "var(--text)" }}
                       >
                         ✏️ Редактировать
                       </button>
                       <button
                         type="button"
+                        disabled={u.isBanned || actionBusy}
                         onClick={() => void toggleActive(u)}
-                        className="flex-1 rounded-xl border px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-80"
+                        className="rounded-xl border px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
                         style={{
                           borderColor: u.isActive ? "color-mix(in srgb, var(--accent) 40%, transparent)" : "var(--border)",
                           background: u.isActive ? "var(--accent-soft)" : "var(--surface2)",
                           color: u.isActive ? "var(--accent)" : "var(--text)",
                         }}
                       >
-                        {u.isActive ? "🙈 Скрыть" : "👀 Показать"}
+                        {u.isBanned
+                          ? "🚫 Заблокирована"
+                          : u.isActive
+                            ? "🙈 Скрыть"
+                            : "👀 Показать"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={() => void toggleBan(u)}
+                        className="col-span-2 rounded-xl border px-3 py-2.5 text-xs font-black transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+                        style={{
+                          borderColor: u.isBanned ? "rgba(16, 185, 129, 0.45)" : "rgba(239, 68, 68, 0.45)",
+                          background: u.isBanned ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                          color: u.isBanned ? "#34d399" : "#f87171",
+                        }}
+                      >
+                        {actionBusy
+                          ? "Обновляем…"
+                          : u.isBanned
+                            ? "✅ Разбанить анкету"
+                            : banConfirmId === u.tgId
+                              ? "⚠️ Подтвердить блокировку"
+                              : "🚫 Забанить анкету"}
                       </button>
                     </div>
                   </div>

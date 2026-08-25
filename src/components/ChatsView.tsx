@@ -187,7 +187,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                       )}
                     </div>
                     <p className="text-xs font-medium" style={{ color: "var(--accent)" }}>
-                      {p.username ? `@${p.username}` : `Telegram ID: ${p.tgId}`}
+                      {p.username ? `@${p.username}` : "@username недоступен"}
                     </p>
                     <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
                       🏅 {formatMmr(p.mmr)} ПТС
@@ -295,16 +295,13 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      openLink(
-                        p.username
-                          ? `https://t.me/${p.username}`
-                          : `tg://user?id=${p.tgId}`,
-                      )
-                    }
-                    className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition-transform active:scale-95"
+                    disabled={!p.username}
+                    onClick={() => {
+                      if (p.username) openLink(`https://t.me/${p.username}`);
+                    }}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-500/20 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    💬 Написать
+                    {p.username ? "💬 Написать" : "@username недоступен"}
                   </button>
                   <button
                     type="button"

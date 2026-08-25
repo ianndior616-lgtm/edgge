@@ -141,11 +141,8 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
   };
 
   const openProfileChat = (profile: PublicProfile) => {
-    openLink(
-      profile.username
-        ? `https://t.me/${profile.username}`
-        : `tg://user?id=${profile.tgId}`,
-    );
+    if (!profile.username) return;
+    openLink(`https://t.me/${profile.username}`);
   };
 
   const submitReport = async (reason: string) => {
@@ -248,7 +245,11 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
               onPointerUp={i === 0 ? finishPointer : undefined}
               onAct={i === 0 ? act : undefined}
               onReport={i === 0 ? () => setReportProfile(p) : undefined}
-              onMessage={i === 0 && me.isVip ? () => openProfileChat(p) : undefined}
+              onMessage={
+                i === 0 && me.isVip && p.username
+                  ? () => openProfileChat(p)
+                  : undefined
+              }
             />
           ))
         )}
@@ -336,10 +337,13 @@ export function RecommendationsView({ me }: { me: UserWithProfile }) {
             <div className="mt-5 flex flex-col gap-2">
               <button
                 type="button"
+                disabled={!match.username}
                 onClick={() => openProfileChat(match)}
-                className="btn-cut rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/25 transition-transform active:scale-95"
+                className="btn-cut rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-500/25 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                💬 Написать в Telegram
+                {match.username
+                  ? "💬 Написать в Telegram"
+                  : "@username недоступен"}
               </button>
               <button
                 type="button"

@@ -3,7 +3,6 @@ import { resolveSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_VERIFY_KEYS = ["code"] as const;
 
 /**
  * Проверка кода доступа администратора (без выдачи прав — только проверка).

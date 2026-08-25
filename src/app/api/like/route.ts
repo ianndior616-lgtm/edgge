@@ -7,7 +7,7 @@ import {
   hasOnlyAllowedKeys,
   rejectLargeBody,
 } from "@/lib/api-guards";
-import { resolveSession, resolveUser } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { LIKE_RECOMMENDATION_COOLDOWN_MS } from "@/lib/like-cooldown";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
@@ -53,9 +53,8 @@ export async function POST(request: Request) {
   const tooLarge = rejectLargeBody(request, SMALL_BODY_LIMIT);
   if (tooLarge) return tooLarge;
 
-  const session = await resolveSession(request);
   const me = await resolveUser(request);
-  if (!session || !me) {
+  if (!me) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
   }
 
   const tgId = Number(body.tgId);
-  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === session.tgId) {
+  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === me.tgId) {
     return NextResponse.json({ error: "Некорректная цель" }, { status: 400 });
   }
   if (typeof body.liked !== "boolean") {
@@ -93,6 +92,7 @@ export async function POST(request: Request) {
       and(
         eq(users.tgId, tgId),
         eq(users.isActive, true),
+        isNotNull(users.username),
         isNotNull(users.onboardedAt),
       ),
     )
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     .from(likes)
     .where(
       and(
-        eq(likes.likerTgId, session.tgId),
+        eq(likes.likerTgId, me.tgId),
         eq(likes.likedTgId, tgId),
       ),
     )
@@ -116,13 +116,13 @@ export async function POST(request: Request) {
 
   await db
     .insert(likes)
-    .values({ likerTgId: session.tgId, likedTgId: tgId, liked: body.liked })
+    .values({ likerTgId: me.tgId, likedTgId: tgId, liked: body.liked })
     .onConflictDoUpdate({
       target: [likes.likerTgId, likes.likedTgId],
       set: { liked: body.liked, createdAt: new Date() },
     });
 
-  await recordSwipeActivity(session.tgId).catch(() => undefined);
+  await recordSwipeActivity(me.tgId).catch(() => undefined);
   if (me.referredByTgId) {
     await checkMilestones(me.referredByTgId).catch(() => undefined);
   }
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       .where(
         and(
           eq(likes.likerTgId, tgId),
-          eq(likes.likedTgId, session.tgId),
+          eq(likes.likedTgId, me.tgId),
           eq(likes.liked, true),
         ),
       )
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
     if (isFreshLike) {
       const origin = new URL(request.url).origin;
       const appUrl = process.env.APP_URL || origin;
-      const likerName = me.name || session.firstName || "Игрок";
+      const likerName = me.name || me.firstName || "Игрок";
       await sendLikeNotification({
         chatId: tgId,
         likerName,
@@ -167,8 +167,8 @@ export async function POST(request: Request) {
  * Закрытый мэтч помечается одинаковым created_at у обеих записей.
  */
 export async function DELETE(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
+  const me = await resolveUser(request);
+  if (!me) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
@@ -181,7 +181,7 @@ export async function DELETE(request: Request) {
 
   await db.execute(sql`
     delete from likes l
-     where l.liker_tg_id = ${session.tgId}
+     where l.liker_tg_id = ${me.tgId}
        and (l.liked = false or l.created_at < ${cooldownStartedAt})
        and not exists (
          select 1
