@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AdminPanelView } from "@/components/AdminPanelView";
 import { AppLogoText } from "@/components/AppLogoText";
 import { ChatsView } from "@/components/ChatsView";
+import { IncomingLikesView } from "@/components/IncomingLikesView";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import { CoinIcon } from "@/components/CoinIcon";
 import { OnboardingForm } from "@/components/OnboardingForm";
@@ -21,7 +22,14 @@ import { localDayString } from "@/lib/wallet-constants";
 import type { CheckinResponse, MeResponse, UserWithProfile } from "@/lib/types";
 
 type Stage = "loading" | "need-tg" | "onboarding" | "app";
-type Tab = "recs" | "profile" | "settings" | "chats" | "wheel" | "admin";
+type Tab =
+  | "recs"
+  | "profile"
+  | "settings"
+  | "likes"
+  | "chats"
+  | "wheel"
+  | "admin";
 type RegMode = "user" | null;
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
@@ -51,12 +59,10 @@ function App() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!initData) {
-      setAuthError("Telegram не передал initData");
-      setStage("need-tg");
-      return;
-    }
 
+    // В production сервер отклонит запрос без initData. В локальном/preview
+    // демо-режиме (без TELEGRAM_BOT_TOKEN) тот же запрос корректно создаст
+    // демо-пользователя, поэтому не блокируем его на стороне браузера раньше.
     let cancelled = false;
     (async () => {
       try {
@@ -235,6 +241,14 @@ function App() {
               />
             </ClientErrorBoundary>
           )}
+          {tab === "likes" && (
+            <ClientErrorBoundary fallbackTitle="Входящие лайки не загрузились">
+              <IncomingLikesView
+                onGoRecs={() => setTab("recs")}
+                onGoChats={() => setTab("chats")}
+              />
+            </ClientErrorBoundary>
+          )}
           {tab === "chats" && (
             <ClientErrorBoundary fallbackTitle="Чаты не загрузились">
               <ChatsView onGoRecs={() => setTab("recs")} />
@@ -301,8 +315,9 @@ function App() {
             paddingBottom: "env(safe-area-inset-bottom)",
           }}
         >
-          <div className="mx-auto flex max-w-md gap-2 px-3 pt-2">
+          <div className="mx-auto flex max-w-md gap-1 px-2 pt-2">
             <NavButton active={tab === "profile"} onClick={() => setTab("profile")} icon="👤" label="Профиль" />
+            <NavButton active={tab === "likes"} onClick={() => setTab("likes")} icon="❤️" label="Лайки" />
             <NavButton active={tab === "chats"} onClick={() => setTab("chats")} icon="💬" label="Чаты" />
             <NavButton active={tab === "wheel"} onClick={() => setTab("wheel")} icon="🎡" label="Фортуна" />
             {me?.isAdmin && <NavButton active={tab === "admin"} onClick={() => setTab("admin")} icon="🛡️" label="Админ" />}
@@ -326,7 +341,7 @@ function NavButton({ active, onClick, icon, label }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-2 text-[12px] font-bold transition-all active:scale-95"
+      className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl py-2 text-[10px] font-bold transition-all active:scale-95 sm:text-[12px]"
       style={{
         background: active ? "#ffffff" : "color-mix(in srgb, #ffffff 82%, transparent)",
         color: "#1e293b",
@@ -334,7 +349,7 @@ function NavButton({ active, onClick, icon, label }: { active: boolean; onClick:
         boxShadow: active ? "0 6px 20px rgba(0,0,0,0.3)" : "0 2px 10px rgba(0,0,0,0.15)",
       }}
     >
-      <span className="text-xl leading-none">{icon}</span>
+      <span className="text-lg leading-none sm:text-xl">{icon}</span>
       {label}
     </button>
   );
@@ -360,14 +375,29 @@ function NeedTelegramScreen({
   initDataPresent: boolean;
   authError: string | null;
 }) {
+  const usernameRequired = /@username|username/i.test(authError ?? "");
+  const databaseRequired = /база данных|database|database_url|postgres_url/i.test(
+    authError ?? "",
+  );
+
   return (
     <main className="fade-up flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="text-5xl">📱</div>
+      <div className="text-5xl">
+        {databaseRequired ? "🗄️" : usernameRequired ? "@️⃣" : "📱"}
+      </div>
       <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>
-        Не удалось войти через Telegram
+        {databaseRequired
+          ? "База данных не подключена"
+          : usernameRequired
+            ? "Нужен Telegram @username"
+            : "Не удалось войти через Telegram"}
       </h1>
       <p className="max-w-xs text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-        Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота.
+        {databaseRequired
+          ? "Администратор приложения должен добавить DATABASE_URL или POSTGRES_URL в переменные окружения Vercel и применить схему базы данных."
+          : usernameRequired
+            ? "Укажи публичный @username в настройках Telegram, затем полностью закрой и открой EdGGe заново. Так после взаимного лайка можно будет сразу перейти в чат."
+            : "Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота."}
       </p>
 
       <div className="w-full max-w-xs rounded-xl border p-3 text-left text-xs leading-6" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}>

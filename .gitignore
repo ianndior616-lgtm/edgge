@@ -1,0 +1,14 @@
+# Dependencies and Next.js build output
+node_modules/
+.next/
+out/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
+next-env.d.ts
+
+# Local configuration and test artifacts
+.env
+.env.local
+.env.*.local
+coverage/

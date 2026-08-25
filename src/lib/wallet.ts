@@ -156,13 +156,23 @@ export async function setUserBanned(
   tgId: number,
   banned: boolean,
 ): Promise<void> {
-  await logReward(tgId, "moderation", 0, banned ? "banned" : "unbanned");
-  if (banned) {
-    await db
+  // Событие модерации и скрытие анкеты должны появляться вместе: иначе между
+  // двумя запросами профиль мог бы снова попасть в рекомендации.
+  await db.transaction(async (tx) => {
+    await tx.insert(rewardsLog).values({
+      tgId,
+      kind: "moderation",
+      amount: 0,
+      note: banned ? "banned" : "unbanned",
+    });
+    await tx
       .update(users)
-      .set({ isActive: false, updatedAt: new Date() })
+      .set({
+        ...(banned ? { isActive: false } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(users.tgId, tgId));
-  }
+  });
 }
 
 /** Вехи начисляются только по качественным рефералам. */

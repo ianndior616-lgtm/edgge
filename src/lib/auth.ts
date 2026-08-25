@@ -2,11 +2,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, type User } from "@/db/schema";
 import { DEMO_TG_ID, seedDemoProfiles } from "./demo";
+import { normalizeTelegramUsername } from "./telegram-username";
 import { isDemoMode, validateInitData } from "./telegram";
-import { getOrCreateReferralCode } from "./wallet";
+import { getOrCreateReferralCode, isUserBanned } from "./wallet";
 import { isConfiguredAdmin } from "./admin";
-
-const USERNAMELESS_ALLOWLIST = new Set<number>([5774035380]);
 
 export type SessionUser = {
   tgId: number;
@@ -17,12 +16,22 @@ export type SessionUser = {
   demo: boolean;
 };
 
+type ResolveSessionOptions = {
+  /**
+   * Все рабочие API требуют @username: только так после мэтча гарантированно
+   * открывается публичный чат Telegram. /api/auth передаёт false, чтобы
+   * показать пользователю понятную причину отказа.
+   */
+  requireUsername?: boolean;
+};
+
 /**
  * Определяет пользователя по заголовку x-init-data (Telegram Mini App).
  * В демо-режиме (без TELEGRAM_BOT_TOKEN) возвращает демо-пользователя.
  */
 export async function resolveSession(
   request: Request,
+  { requireUsername = true }: ResolveSessionOptions = {},
 ): Promise<SessionUser | null> {
   if (isDemoMode()) {
     await seedDemoProfiles();
@@ -40,25 +49,35 @@ export async function resolveSession(
   const tg = validateInitData(initData);
   if (!tg) return null;
 
-  return {
+  const session: SessionUser = {
     tgId: tg.id,
-    username: tg.username ?? null,
+    username: normalizeTelegramUsername(tg.username),
     firstName: tg.first_name ?? "",
     lastName: tg.last_name ?? null,
     photoUrl: tg.photo_url ?? null,
     demo: false,
   };
+
+  return requireUsername && !session.username ? null : session;
 }
 
-/** Полная строка пользователя из БД (создаётся при первом входе) */
+/** Полная строка пользователя из БД (создаётся при первом входе). */
 export async function resolveUser(request: Request): Promise<User | null> {
   const session = await resolveSession(request);
   if (!session) return null;
-  return ensureUser(session);
+
+  const user = await ensureUser(session);
+  // Бан должен работать одинаково для всех API, а не только для формы профиля.
+  return (await isUserBanned(user.tgId)) ? null : user;
 }
 
-/** Находит пользователя в БД или создаёт его при первом входе */
-export async function ensureUser(session: SessionUser) {
+/** Находит пользователя в БД или создаёт его при первом входе. */
+export async function ensureUser(session: SessionUser): Promise<User> {
+  const username = normalizeTelegramUsername(session.username);
+  if (!username) {
+    throw new Error("Telegram username is required for registration");
+  }
+
   const existing = await db
     .select()
     .from(users)
@@ -73,13 +92,13 @@ export async function ensureUser(session: SessionUser) {
       .update(users)
       .set({
         lastSeenAt: existing[0].lastSeenAt,
-        // Если пользователь позже добавил/изменил username — держим его актуальным.
-        username: session.username,
+        // Telegram username может измениться — всегда держим ссылку актуальной.
+        username,
         ...(configuredAdmin ? { isAdmin: true } : {}),
       })
       .where(eq(users.tgId, session.tgId));
 
-    existing[0].username = session.username;
+    existing[0].username = username;
 
     if (!existing[0].referralCode) {
       const code = await getOrCreateReferralCode(session.tgId);
@@ -88,17 +107,11 @@ export async function ensureUser(session: SessionUser) {
     return existing[0];
   }
 
-  // Новую регистрацию без Telegram @username не создаём вообще.
-  // Исключение — только заранее разрешённый аккаунт владельца.
-  if (!session.username && !USERNAMELESS_ALLOWLIST.has(session.tgId)) {
-    throw new Error("Telegram username is required for registration");
-  }
-
   const [created] = await db
     .insert(users)
     .values({
       tgId: session.tgId,
-      username: session.username,
+      username,
       firstName: session.firstName,
       lastName: session.lastName,
       photoUrl: session.photoUrl,

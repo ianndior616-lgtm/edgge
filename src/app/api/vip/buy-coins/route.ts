@@ -2,26 +2,28 @@ import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { rewardsLog, users } from "@/db/schema";
-import { ensureUser, resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { nextVipUntil, VIP_COIN_PRICE, vipNote } from "@/lib/vip";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram" }, { status: 401 });
+  const user = await resolveUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram" },
+      { status: 401 },
+    );
   }
-  await ensureUser(session);
 
   try {
-    const until = await nextVipUntil(session.tgId);
+    const until = await nextVipUntil(user.tgId);
 
     await db.transaction(async (tx) => {
       const [me] = await tx
         .select({ currency: users.currency, isAdmin: users.isAdmin })
         .from(users)
-        .where(eq(users.tgId, session.tgId))
+        .where(eq(users.tgId, user.tgId))
         .limit(1);
 
       if (!me) throw new Error("USER_NOT_FOUND");
@@ -34,10 +36,10 @@ export async function POST(request: Request) {
           currency: sql`${users.currency} - ${VIP_COIN_PRICE}`,
           updatedAt: new Date(),
         })
-        .where(eq(users.tgId, session.tgId));
+        .where(eq(users.tgId, user.tgId));
 
       await tx.insert(rewardsLog).values({
-        tgId: session.tgId,
+        tgId: user.tgId,
         kind: "vip_purchase_coin",
         amount: -VIP_COIN_PRICE,
         note: vipNote(until, "method:coins"),
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     const [updated] = await db
       .select({ currency: users.currency, isAdmin: users.isAdmin })
       .from(users)
-      .where(eq(users.tgId, session.tgId))
+      .where(eq(users.tgId, user.tgId))
       .limit(1);
 
     return NextResponse.json({

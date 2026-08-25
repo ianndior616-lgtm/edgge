@@ -13,7 +13,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
-import { ensureUser, resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { LIKE_RECOMMENDATION_COOLDOWN_MS } from "@/lib/like-cooldown";
 import { toRatedPublicProfile } from "@/lib/serialize";
 
@@ -22,20 +22,18 @@ export const dynamic = "force-dynamic";
 const MMR_RANGE = 2000;
 
 export async function GET(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
+  const currentUser = await resolveUser(request);
+  if (!currentUser) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
     );
   }
 
-  await ensureUser(session);
-
   const [me] = await db
     .select({ mmr: users.mmr })
     .from(users)
-    .where(eq(users.tgId, session.tgId))
+    .where(eq(users.tgId, currentUser.tgId))
     .limit(1);
 
   const cooldownStartedAt = new Date(
@@ -57,7 +55,7 @@ export async function GET(request: Request) {
     )
     .where(
       and(
-        eq(likes.likerTgId, session.tgId),
+        eq(likes.likerTgId, currentUser.tgId),
         or(
           eq(likes.liked, false),
           gte(likes.createdAt, cooldownStartedAt),
@@ -68,7 +66,10 @@ export async function GET(request: Request) {
 
   const conditions: Parameters<typeof and>[0][] = [
     eq(users.isActive, true),
-    ne(users.tgId, session.tgId),
+    ne(users.tgId, currentUser.tgId),
+    // В рекомендациях показываем только людей, которым действительно можно
+    // написать после взаимного лайка.
+    isNotNull(users.username),
     isNotNull(users.onboardedAt),
     isNotNull(users.name),
     isNotNull(users.role),

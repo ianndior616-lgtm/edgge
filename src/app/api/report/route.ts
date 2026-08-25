@@ -58,6 +58,7 @@ export async function POST(request: Request) {
     .where(
       and(
         eq(users.tgId, reportedTgId),
+        isNotNull(users.username),
         isNotNull(users.onboardedAt),
       ),
     )

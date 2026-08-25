@@ -6,7 +6,6 @@ export const VIP_COIN_PRICE = 1000;
 export const VIP_DURATION_DAYS = 30;
 export const VIP_STARS_PRICE = Math.max(1, Number(process.env.VIP_STARS_PRICE || 150));
 
-const VIP_KINDS = ["vip_purchase_coin", "vip_purchase_stars"] as const;
 
 function parseVipUntil(note: string | null): Date | null {
   const match = note?.match(/vip_until:([^;\s]+)/);

@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigurationError } from "@/db";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +12,20 @@ export async function GET() {
       database: "connected",
     });
   } catch (error) {
-    console.error("DATABASE ERROR:", error);
+    if (isDatabaseConfigurationError(error)) {
+      return Response.json(
+        {
+          ok: false,
+          database: "not_configured",
+          error:
+            "Set DATABASE_URL or POSTGRES_URL in Vercel and apply the Drizzle schema.",
+        },
+        { status: 503 },
+      );
+    }
 
-    const message =
-      error instanceof Error ? error.message : String(error);
+    console.error("DATABASE ERROR:", error);
+    const message = error instanceof Error ? error.message : String(error);
 
     return Response.json(
       {
@@ -23,7 +33,7 @@ export async function GET() {
         database: "failed",
         error: message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

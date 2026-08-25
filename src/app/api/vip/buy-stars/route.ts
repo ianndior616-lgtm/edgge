@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
-import { resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { tgApi } from "@/lib/telegram";
 import { VIP_STARS_PRICE } from "@/lib/vip";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
-    return NextResponse.json({ error: "Нужно открыть приложение через Telegram" }, { status: 401 });
+  const user = await resolveUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Нужно открыть приложение через Telegram" },
+      { status: 401 },
+    );
   }
 
   try {
     const result = await tgApi<{ ok?: boolean; result?: string }>("createInvoiceLink", {
       title: "EdGGe VIP — 30 дней",
-      description: "VIP: приоритет анкеты, сообщения без мэтча, кастомизация интерфейса и статистика за 7/30 дней.",
+      description:
+        "VIP: приоритет анкеты, сообщения без мэтча, кастомизация интерфейса и статистика за 7/30 дней.",
       payload: "edgge_vip_monthly",
       provider_token: "",
       currency: "XTR",

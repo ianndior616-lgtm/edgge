@@ -2,20 +2,19 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ensureUser, resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { importDotaProfile } from "@/lib/dota-profile";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
+  const user = await resolveUser(request);
+  if (!user) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
     );
   }
-  await ensureUser(session);
 
   let body: { profile?: unknown };
   try {
@@ -57,7 +56,7 @@ export async function POST(request: Request) {
       dotaLastSyncAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(users.tgId, session.tgId));
+    .where(eq(users.tgId, user.tgId));
 
   return NextResponse.json({ profile });
 }

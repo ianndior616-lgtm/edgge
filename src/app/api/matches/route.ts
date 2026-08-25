@@ -1,17 +1,18 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
-import { resolveSession } from "@/lib/auth";
+import { resolveUser } from "@/lib/auth";
 import { feedbackTagsFromRater } from "@/lib/feedback";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import type { MatchItem } from "@/lib/types";
+import { isUserBanned } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
+  const me = await resolveUser(request);
+  if (!me) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   const outgoing = await db
     .select({ tgId: likes.likedTgId })
     .from(likes)
-    .where(and(eq(likes.likerTgId, session.tgId), eq(likes.liked, true)));
+    .where(and(eq(likes.likerTgId, me.tgId), eq(likes.liked, true)));
   const ids = outgoing.map((r) => r.tgId);
   if (ids.length === 0) return NextResponse.json({ matches: [] });
 
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     .from(likes)
     .where(
       and(
-        eq(likes.likedTgId, session.tgId),
+        eq(likes.likedTgId, me.tgId),
         eq(likes.liked, true),
         inArray(likes.likerTgId, ids),
       ),
@@ -39,17 +40,30 @@ export async function GET(request: Request) {
   if (matchIds.length === 0) return NextResponse.json({ matches: [] });
 
   const [rows, myRatings] = await Promise.all([
-    db.select().from(users).where(inArray(users.tgId, matchIds)),
+    db
+      .select()
+      .from(users)
+      .where(and(inArray(users.tgId, matchIds), isNotNull(users.username))),
     db
       .select({ tgId: ratings.ratedTgId, stars: ratings.stars })
       .from(ratings)
       .where(
         and(
-          eq(ratings.raterTgId, session.tgId),
+          eq(ratings.raterTgId, me.tgId),
           inArray(ratings.ratedTgId, matchIds),
         ),
       ),
   ]);
+
+  // Заблокированная анкета не должна оставаться точкой входа в переписку
+  // даже у людей, с которыми мэтч случился до модерации.
+  const visibleRows = (
+    await Promise.all(
+      rows.map(async (row) => ({ row, banned: await isUserBanned(row.tgId) })),
+    )
+  )
+    .filter(({ banned }) => !banned)
+    .map(({ row }) => row);
 
   const matchedAtByTg = new Map(
     incoming.map((r) => [
@@ -60,11 +74,11 @@ export async function GET(request: Request) {
   const myRatingByTg = new Map(myRatings.map((r) => [r.tgId, r.stars]));
 
   const matches: MatchItem[] = await Promise.all(
-    rows.map(async (row) => ({
+    visibleRows.map(async (row) => ({
       profile: await toRatedPublicProfile(row),
       matchedAt: matchedAtByTg.get(row.tgId) ?? null,
       myRating: myRatingByTg.get(row.tgId) ?? null,
-      myFeedbackTags: await feedbackTagsFromRater(session.tgId, row.tgId),
+      myFeedbackTags: await feedbackTagsFromRater(me.tgId, row.tgId),
     })),
   );
 
@@ -77,8 +91,8 @@ export async function GET(request: Request) {
  * никогда не попадут друг другу в рекомендации.
  */
 export async function DELETE(request: Request) {
-  const session = await resolveSession(request);
-  if (!session) {
+  const me = await resolveUser(request);
+  if (!me) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
       { status: 401 },
@@ -86,7 +100,7 @@ export async function DELETE(request: Request) {
   }
 
   const tgId = Number(new URL(request.url).searchParams.get("tgId"));
-  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === session.tgId) {
+  if (!Number.isInteger(tgId) || tgId <= 0 || tgId === me.tgId) {
     return NextResponse.json({ error: "Некорректный tgId" }, { status: 400 });
   }
 
@@ -96,8 +110,8 @@ export async function DELETE(request: Request) {
     update likes
        set liked = false,
            created_at = now()
-     where (liker_tg_id = ${session.tgId} and liked_tg_id = ${tgId})
-        or (liker_tg_id = ${tgId} and liked_tg_id = ${session.tgId})
+     where (liker_tg_id = ${me.tgId} and liked_tg_id = ${tgId})
+        or (liker_tg_id = ${tgId} and liked_tg_id = ${me.tgId})
   `);
 
   return NextResponse.json({ ok: true });

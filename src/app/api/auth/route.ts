@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
+import { isDatabaseConfigurationError } from "@/db";
 import { ensureUser, resolveSession } from "@/lib/auth";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { BOT_USERNAME } from "@/lib/telegram";
+import { TELEGRAM_USERNAME_REQUIRED_MESSAGE } from "@/lib/telegram-username";
+import { isUserBanned } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
-
-/** Единственный аккаунт, которому разрешён вход без @username. */
-const USERNAMELESS_ALLOWLIST = new Set<number>([5774035380]);
 
 /**
  * Авторизация: проверяет initData Telegram (заголовок x-init-data)
  * и возвращает текущего пользователя с его анкетой и кошельком.
  */
 export async function POST(request: Request) {
-  const session = await resolveSession(request);
+  // Здесь намеренно не требуем username внутри resolveSession, чтобы вместо
+  // неясного 401 показать пользователю инструкцию, как исправить профиль.
+  const session = await resolveSession(request, { requireUsername: false });
   if (!session) {
     return NextResponse.json(
       { error: "Нужно открыть приложение через Telegram-бота" },
@@ -21,22 +23,37 @@ export async function POST(request: Request) {
     );
   }
 
-  // Для связи после мэтча EdGGe требует Telegram @username.
-  // Исключение оставлено только для владельца с указанным Telegram ID.
-  if (!session.username && !USERNAMELESS_ALLOWLIST.has(session.tgId)) {
+  if (!session.username) {
     return NextResponse.json(
-      {
-        error:
-          "Для регистрации в EdGGe установи @username в настройках Telegram и открой приложение заново.",
-      },
+      { error: TELEGRAM_USERNAME_REQUIRED_MESSAGE },
       { status: 403 },
     );
   }
 
-  const user = await ensureUser(session);
-  return NextResponse.json({
-    user: await withReferralCount(toUserWithProfile(user)),
-    demo: session.demo,
-    botUsername: BOT_USERNAME || null,
-  });
+  try {
+    const user = await ensureUser(session);
+    if (await isUserBanned(user.tgId)) {
+      return NextResponse.json(
+        { error: "Анкета заблокирована администратором" },
+        { status: 403 },
+      );
+    }
+
+    return NextResponse.json({
+      user: await withReferralCount(toUserWithProfile(user)),
+      demo: session.demo,
+      botUsername: BOT_USERNAME || null,
+    });
+  } catch (error) {
+    if (isDatabaseConfigurationError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "База данных не настроена. В Vercel добавьте DATABASE_URL или POSTGRES_URL, затем примените схему Drizzle.",
+        },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
 }
