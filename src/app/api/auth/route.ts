@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isDatabaseConfigurationError } from "@/db";
 import { ensureUser, resolveSession } from "@/lib/auth";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { BOT_USERNAME } from "@/lib/telegram";
@@ -29,17 +30,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = await ensureUser(session);
-  if (await isUserBanned(user.tgId)) {
-    return NextResponse.json(
-      { error: "Анкета заблокирована администратором" },
-      { status: 403 },
-    );
-  }
+  try {
+    const user = await ensureUser(session);
+    if (await isUserBanned(user.tgId)) {
+      return NextResponse.json(
+        { error: "Анкета заблокирована администратором" },
+        { status: 403 },
+      );
+    }
 
-  return NextResponse.json({
-    user: await withReferralCount(toUserWithProfile(user)),
-    demo: session.demo,
-    botUsername: BOT_USERNAME || null,
-  });
+    return NextResponse.json({
+      user: await withReferralCount(toUserWithProfile(user)),
+      demo: session.demo,
+      botUsername: BOT_USERNAME || null,
+    });
+  } catch (error) {
+    if (isDatabaseConfigurationError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "База данных не настроена. В Vercel добавьте DATABASE_URL или POSTGRES_URL, затем примените схему Drizzle.",
+        },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
 }

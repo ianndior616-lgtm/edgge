@@ -59,12 +59,10 @@ function App() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!initData) {
-      setAuthError("Telegram не передал initData");
-      setStage("need-tg");
-      return;
-    }
 
+    // В production сервер отклонит запрос без initData. В локальном/preview
+    // демо-режиме (без TELEGRAM_BOT_TOKEN) тот же запрос корректно создаст
+    // демо-пользователя, поэтому не блокируем его на стороне браузера раньше.
     let cancelled = false;
     (async () => {
       try {
@@ -378,17 +376,28 @@ function NeedTelegramScreen({
   authError: string | null;
 }) {
   const usernameRequired = /@username|username/i.test(authError ?? "");
+  const databaseRequired = /база данных|database|database_url|postgres_url/i.test(
+    authError ?? "",
+  );
 
   return (
     <main className="fade-up flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="text-5xl">{usernameRequired ? "@️⃣" : "📱"}</div>
+      <div className="text-5xl">
+        {databaseRequired ? "🗄️" : usernameRequired ? "@️⃣" : "📱"}
+      </div>
       <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>
-        {usernameRequired ? "Нужен Telegram @username" : "Не удалось войти через Telegram"}
+        {databaseRequired
+          ? "База данных не подключена"
+          : usernameRequired
+            ? "Нужен Telegram @username"
+            : "Не удалось войти через Telegram"}
       </h1>
       <p className="max-w-xs text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-        {usernameRequired
-          ? "Укажи публичный @username в настройках Telegram, затем полностью закрой и открой EdGGe заново. Так после взаимного лайка можно будет сразу перейти в чат."
-          : "Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота."}
+        {databaseRequired
+          ? "Администратор приложения должен добавить DATABASE_URL или POSTGRES_URL в переменные окружения Vercel и применить схему базы данных."
+          : usernameRequired
+            ? "Укажи публичный @username в настройках Telegram, затем полностью закрой и открой EdGGe заново. Так после взаимного лайка можно будет сразу перейти в чат."
+            : "Открой EdGGe кнопкой Open App в профиле @edggebot или кнопкой «Открыть EdGGe» в сообщении бота."}
       </p>
 
       <div className="w-full max-w-xs rounded-xl border p-3 text-left text-xs leading-6" style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}>
