@@ -16,6 +16,19 @@ export interface MigrationResult {
   total: number;
 }
 
+let automaticMigration: Promise<MigrationResult> | null = null;
+
+/** Один безопасный запуск на каждый прогретый serverless-инстанс. */
+export function ensureMigrationsApplied(): Promise<MigrationResult> {
+  if (!automaticMigration) {
+    automaticMigration = runMigrations().catch((error) => {
+      automaticMigration = null;
+      throw error;
+    });
+  }
+  return automaticMigration;
+}
+
 /** Проверка конфигурации БД с понятным сообщением (не бросает). */
 export async function checkDatabaseConfigured(): Promise<
   { ok: true } | { ok: false; hint: string }
@@ -50,30 +63,34 @@ export async function runMigrations(): Promise<MigrationResult> {
      )`,
   );
 
-  const { rows } = await pool.query<{ name: string }>(
-    `select "name" from "_migrations"`,
-  );
-  const done = new Set(rows.map((r) => r.name));
-
-  // Продовая база появилась раньше журнала _migrations. В таком случае
-  // повторный CREATE TABLE из 0000 упадёт на уже существующих таблицах.
-  // Считаем исходную схему применённой, если главная таблица уже существует;
-  // последующие ALTER-миграции всё равно выполнятся в обычном порядке.
-  if (!done.has("0000_initial")) {
-    const { rows: schemaRows } = await pool.query<{ users_table: string | null }>(
-      `select to_regclass('public.users')::text as users_table`,
-    );
-    if (schemaRows[0]?.users_table) {
-      await pool.query(
-        `insert into "_migrations" ("name") values ($1) on conflict do nothing`,
-        ["0000_initial"],
-      );
-      done.add("0000_initial");
-    }
-  }
-
   const client = await pool.connect();
   try {
+    // Vercel может одновременно поднять несколько инстансов. Advisory lock
+    // сериализует DDL и не даёт двум процессам накатывать одну миграцию.
+    await client.query(`select pg_advisory_lock($1)`, [1_934_431_001]);
+
+    const { rows } = await client.query<{ name: string }>(
+      `select "name" from "_migrations"`,
+    );
+    const done = new Set(rows.map((r) => r.name));
+
+    // Продовая база появилась раньше журнала _migrations. В таком случае
+    // повторный CREATE TABLE из 0000 упадёт на уже существующих таблицах.
+    // Считаем исходную схему применённой, если главная таблица уже существует;
+    // последующие ALTER-миграции всё равно выполнятся в обычном порядке.
+    if (!done.has("0000_initial")) {
+      const { rows: schemaRows } = await client.query<{
+        users_table: string | null;
+      }>(`select to_regclass('public.users')::text as users_table`);
+      if (schemaRows[0]?.users_table) {
+        await client.query(
+          `insert into "_migrations" ("name") values ($1) on conflict do nothing`,
+          ["0000_initial"],
+        );
+        done.add("0000_initial");
+      }
+    }
+
     for (const migration of MIGRATIONS) {
       if (done.has(migration.name)) {
         alreadyApplied.push(migration.name);
@@ -84,7 +101,7 @@ export async function runMigrations(): Promise<MigrationResult> {
       try {
         await client.query(migration.sql);
         await client.query(
-          `insert into "_migrations" ("name") values ($1)`,
+          `insert into "_migrations" ("name") values ($1) on conflict do nothing`,
           [migration.name],
         );
         await client.query("commit");
@@ -95,6 +112,9 @@ export async function runMigrations(): Promise<MigrationResult> {
       }
     }
   } finally {
+    await client
+      .query(`select pg_advisory_unlock($1)`, [1_934_431_001])
+      .catch(() => undefined);
     client.release();
   }
 

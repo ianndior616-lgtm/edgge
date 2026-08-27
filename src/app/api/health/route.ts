@@ -1,15 +1,18 @@
 import { db, isDatabaseConfigurationError } from "@/db";
 import { sql } from "drizzle-orm";
+import { ensureMigrationsApplied } from "@/lib/run-migrations";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const migrations = await ensureMigrationsApplied();
     await db.execute(sql`select 1`);
 
     return Response.json({
       ok: true,
       database: "connected",
+      migrations,
     });
   } catch (error) {
     if (isDatabaseConfigurationError(error)) {

@@ -9,6 +9,7 @@ import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { BOT_USERNAME } from "@/lib/telegram";
 import { TELEGRAM_USERNAME_REQUIRED_MESSAGE } from "@/lib/telegram-username";
 import { isUserBanned } from "@/lib/wallet";
+import { ensureMigrationsApplied } from "@/lib/run-migrations";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await ensureMigrationsApplied();
     const user = await ensureUser(session);
     if (await isUserBanned(user.tgId)) {
       return NextResponse.json(
