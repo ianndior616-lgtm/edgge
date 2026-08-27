@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { ROLES } from "@/lib/dota";
-import type { AdminUserUpdate, AdminUserView, RoleId } from "@/lib/types";
+import { GENDERS } from "@/lib/gender";
+import type {
+  AdminUserUpdate,
+  AdminUserView,
+  GenderId,
+  RoleId,
+} from "@/lib/types";
 
 const INPUT_CLS =
   "w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]";
@@ -23,6 +29,7 @@ export function AdminEditForm({
   const { initData } = useTelegram();
 
   const [name, setName] = useState(user.name ?? "");
+  const [gender, setGender] = useState<GenderId | null>(user.gender);
   const [role, setRole] = useState<RoleId | null>(user.role);
   const [lookingFor, setLookingFor] = useState<RoleId[]>(user.lookingFor);
   const [mmr, setMmr] = useState(user.mmr != null ? String(user.mmr) : "");
@@ -44,6 +51,7 @@ export function AdminEditForm({
     setError(null);
 
     if (!name.trim()) return setError("Укажи имя");
+    if (!gender) return setError("Выбери пол");
     if (!role) return setError("Выбери роль");
     const mmrNum = Number(mmr);
     if (!Number.isInteger(mmrNum) || mmrNum < 0 || mmrNum > 20000)
@@ -58,6 +66,7 @@ export function AdminEditForm({
     try {
       const body: AdminUserUpdate = {
         name: name.trim(),
+        gender,
         role,
         lookingFor,
         mmr: mmrNum,
@@ -90,6 +99,26 @@ export function AdminEditForm({
           maxLength={40}
           onChange={(e) => setName(e.target.value)}
         />
+      </div>
+
+      <div>
+        <span className={LABEL_CLS}>Пол</span>
+        <div className="grid grid-cols-2 gap-2">
+          {GENDERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setGender(item.id)}
+              className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                gender === item.id
+                  ? "border-red-500/70 bg-red-500/15 text-white"
+                  : "border-[var(--border)] bg-[var(--surface2)] text-[var(--muted)]"
+              }`}
+            >
+              {item.id === "male" ? "♂" : "♀"} {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>

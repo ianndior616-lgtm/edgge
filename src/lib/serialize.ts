@@ -39,6 +39,8 @@ export function toPublicProfile(row: User): PublicProfile {
     role: row.role as RoleId | null,
     mmr: row.mmr,
     age: row.age,
+    gender:
+      row.gender === "male" || row.gender === "female" ? row.gender : null,
     profileLink: row.profileLink,
     description: row.description,
     dotaAccountId: row.dotaAccountId,
@@ -72,6 +74,7 @@ export function isProfileComplete(
       p.role &&
       p.mmr != null &&
       p.age != null &&
+      p.gender != null &&
       p.profileLink,
   );
 }

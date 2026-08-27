@@ -73,7 +73,15 @@ async function upsertFromTelegram(from: TgFrom | undefined, chatId: number) {
         firstName: from.first_name ?? "",
         lastName: from.last_name ?? null,
       })
-      .onConflictDoNothing({ target: users.tgId });
+      .onConflictDoUpdate({
+        target: users.tgId,
+        set: {
+          username,
+          firstName: from.first_name ?? "",
+          lastName: from.last_name ?? null,
+          updatedAt: new Date(),
+        },
+      });
   } catch {
     // не критично для ответа боту
   }

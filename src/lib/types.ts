@@ -3,6 +3,9 @@ import type { FeedbackTagId, FeedbackTagStat } from "./feedback-tags";
 /** Позиции в Dota 2 */
 export type RoleId = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
 
+/** Пол, выбранный владельцем анкеты */
+export type GenderId = "male" | "female";
+
 /** Идентификаторы тем оформления */
 export type ThemeId = "dark" | "light" | "dota";
 
@@ -37,6 +40,7 @@ export type PublicProfile = {
   role: RoleId | null;
   mmr: number | null;
   age: number | null;
+  gender: GenderId | null;
   profileLink: string | null;
   description: string | null;
   dotaAccountId: number | null;
@@ -131,6 +135,7 @@ export type AdminUsersResponse = {
 
 export type AdminUserUpdate = {
   name?: string;
+  gender?: GenderId;
   role?: RoleId;
   lookingFor?: RoleId[];
   mmr?: number;
@@ -148,7 +153,8 @@ export type ReportReason =
   | "meaningless"
   | "insult"
   | "unpleasant"
-  | "politics";
+  | "politics"
+  | "wrong_gender";
 
 export type ReportView = {
   id: number;
@@ -228,6 +234,7 @@ export type DotaProfileImportResponse = { profile: DotaProfileImport };
 
 export type ProfileUpdate = {
   name?: string;
+  gender?: GenderId;
   role?: RoleId;
   lookingFor?: RoleId[];
   avatarUrl?: string | null;

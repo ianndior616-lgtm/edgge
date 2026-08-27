@@ -105,6 +105,10 @@ CREATE INDEX "users_role_mmr_idx" ON "users" USING btree ("role","mmr");--> stat
 CREATE UNIQUE INDEX "users_referral_code_uidx" ON "users" USING btree ("referral_code");
 `;
 
+const ADD_GENDER = `
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "gender" text;
+`;
+
 export interface Migration {
   /** Имя миграции, совпадает с именем файла drizzle/NNNN_*.sql без расширения. */
   name: string;
@@ -114,4 +118,5 @@ export interface Migration {
 
 export const MIGRATIONS: readonly Migration[] = [
   { name: "0000_initial", sql: INITIAL_SCHEMA },
+  { name: "0001_add_gender", sql: ADD_GENDER },
 ];

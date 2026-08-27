@@ -65,6 +65,7 @@ export const users = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     mmr: integer("mmr"), // ПТС / MMR
     age: integer("age"),
+    gender: text("gender"), // male | female
     profileLink: text("profile_link"), // Steam / Dotabuff / Stratz
     description: text("description"),
 

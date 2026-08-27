@@ -5,6 +5,7 @@ import { Avatar } from "./Avatar";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { formatMmr, roleById } from "@/lib/dota";
+import { genderLabel } from "@/lib/gender";
 import {
   FEEDBACK_TAGS,
   type FeedbackTagId,
@@ -192,6 +193,7 @@ export function ChatsView({ onGoRecs }: { onGoRecs: () => void }) {
                     <p className="mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
                       🏅 {formatMmr(p.mmr)} ПТС
                       {p.age != null ? ` · ${p.age}` : ""}
+                      {` · ${genderLabel(p.gender)}`}
                       {m.matchedAt
                         ? ` · 💘 ${new Date(m.matchedAt).toLocaleDateString("ru-RU", {
                             day: "numeric",

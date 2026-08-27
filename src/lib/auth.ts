@@ -71,6 +71,26 @@ export async function resolveUser(request: Request): Promise<User | null> {
   return (await isUserBanned(user.tgId)) ? null : user;
 }
 
+/**
+ * Синхронизирует только подтверждённые Telegram поля. Если пользователь удалил
+ * @username, старая ссылка больше не должна оставаться в публичной анкете.
+ */
+export async function syncTelegramIdentity(session: SessionUser): Promise<void> {
+  const username = normalizeTelegramUsername(session.username);
+  await db
+    .update(users)
+    .set({
+      username,
+      firstName: session.firstName,
+      lastName: session.lastName,
+      photoUrl: session.photoUrl,
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+      ...(!username ? { isActive: false } : {}),
+    })
+    .where(eq(users.tgId, session.tgId));
+}
+
 /** Находит пользователя в БД или создаёт его при первом входе. */
 export async function ensureUser(session: SessionUser): Promise<User> {
   const username = normalizeTelegramUsername(session.username);
@@ -94,11 +114,18 @@ export async function ensureUser(session: SessionUser): Promise<User> {
         lastSeenAt: existing[0].lastSeenAt,
         // Telegram username может измениться — всегда держим ссылку актуальной.
         username,
+        firstName: session.firstName,
+        lastName: session.lastName,
+        photoUrl: session.photoUrl,
+        updatedAt: new Date(),
         ...(configuredAdmin ? { isAdmin: true } : {}),
       })
       .where(eq(users.tgId, session.tgId));
 
     existing[0].username = username;
+    existing[0].firstName = session.firstName;
+    existing[0].lastName = session.lastName;
+    existing[0].photoUrl = session.photoUrl;
 
     if (!existing[0].referralCode) {
       const code = await getOrCreateReferralCode(session.tgId);

@@ -7,14 +7,11 @@ import {
   lte,
   ne,
   notInArray,
-  or,
 } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
 import { resolveUser } from "@/lib/auth";
-import { LIKE_RECOMMENDATION_COOLDOWN_MS } from "@/lib/like-cooldown";
 import { toRatedPublicProfile } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
@@ -36,33 +33,12 @@ export async function GET(request: Request) {
     .where(eq(users.tgId, currentUser.tgId))
     .limit(1);
 
-  const cooldownStartedAt = new Date(
-    Date.now() - LIKE_RECOMMENDATION_COOLDOWN_MS,
-  );
-  const reciprocalLikes = alias(likes, "reciprocal_likes");
-
-  // Дизлайки скрыты до ручного сброса, мэтчи — навсегда, а обычный
-  // односторонний лайк прячет анкету только на 30 минут.
+  // Любая уже поставленная реакция скрывает анкету. Дизлайки можно очистить
+  // кнопкой «Начать сначала», а лайки и история мэтчей сохраняются навсегда.
   const hiddenReactions = db
     .select({ tgId: likes.likedTgId })
     .from(likes)
-    .leftJoin(
-      reciprocalLikes,
-      and(
-        eq(reciprocalLikes.likerTgId, likes.likedTgId),
-        eq(reciprocalLikes.likedTgId, likes.likerTgId),
-      ),
-    )
-    .where(
-      and(
-        eq(likes.likerTgId, currentUser.tgId),
-        or(
-          eq(likes.liked, false),
-          gte(likes.createdAt, cooldownStartedAt),
-          eq(reciprocalLikes.liked, true),
-        ),
-      ),
-    );
+    .where(eq(likes.likerTgId, currentUser.tgId));
 
   const conditions: Parameters<typeof and>[0][] = [
     eq(users.isActive, true),
@@ -75,6 +51,7 @@ export async function GET(request: Request) {
     isNotNull(users.role),
     isNotNull(users.mmr),
     isNotNull(users.age),
+    isNotNull(users.gender),
     isNotNull(users.profileLink),
   ];
 

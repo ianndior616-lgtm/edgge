@@ -8,7 +8,6 @@ import {
   rejectLargeBody,
 } from "@/lib/api-guards";
 import { resolveUser } from "@/lib/auth";
-import { LIKE_RECOMMENDATION_COOLDOWN_MS } from "@/lib/like-cooldown";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
 import { checkMilestones, recordSwipeActivity } from "@/lib/wallet";
@@ -94,6 +93,7 @@ export async function POST(request: Request) {
         eq(users.isActive, true),
         isNotNull(users.username),
         isNotNull(users.onboardedAt),
+        isNotNull(users.gender),
       ),
     )
     .limit(1);
@@ -162,7 +162,9 @@ export async function POST(request: Request) {
 }
 
 /**
- * «Начать сначала» очищает обычные свайпы, но НЕ стирает историю мэтчей.
+ * «Начать сначала» очищает только дизлайки. Поставленные лайки и история
+ * мэтчей сохраняются навсегда, поэтому оценённая положительно анкета больше
+ * никогда не возвращается в рекомендации.
  * Активный мэтч = обе стороны liked=true.
  * Закрытый мэтч помечается одинаковым created_at у обеих записей.
  */
@@ -175,14 +177,10 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const cooldownStartedAt = new Date(
-    Date.now() - LIKE_RECOMMENDATION_COOLDOWN_MS,
-  );
-
   await db.execute(sql`
     delete from likes l
      where l.liker_tg_id = ${me.tgId}
-       and (l.liked = false or l.created_at < ${cooldownStartedAt})
+       and l.liked = false
        and not exists (
          select 1
            from likes r

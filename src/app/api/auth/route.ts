@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { isDatabaseConfigurationError } from "@/db";
-import { ensureUser, resolveSession } from "@/lib/auth";
+import {
+  ensureUser,
+  resolveSession,
+  syncTelegramIdentity,
+} from "@/lib/auth";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { BOT_USERNAME } from "@/lib/telegram";
 import { TELEGRAM_USERNAME_REQUIRED_MESSAGE } from "@/lib/telegram-username";
@@ -24,6 +28,9 @@ export async function POST(request: Request) {
   }
 
   if (!session.username) {
+    // Telegram подписал эти данные: если @username удалён, убираем старую
+    // публичную ссылку и скрываем анкету, чтобы по ней не создавались мэтчи.
+    await syncTelegramIdentity(session).catch(() => undefined);
     return NextResponse.json(
       { error: TELEGRAM_USERNAME_REQUIRED_MESSAGE },
       { status: 403 },

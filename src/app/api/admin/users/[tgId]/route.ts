@@ -11,6 +11,7 @@ import {
 import { resolveUser } from "@/lib/auth";
 import { normalizeLookingFor } from "@/lib/avatars";
 import { ROLE_IDS } from "@/lib/dota";
+import { isGenderId } from "@/lib/gender";
 import { toAdminUserView } from "@/lib/serialize";
 import {
   isUserBanned,
@@ -25,6 +26,7 @@ type RouteContext = { params: Promise<{ tgId: string }> };
 
 const ALLOWED_ADMIN_UPDATE_KEYS = [
   "name",
+  "gender",
   "role",
   "lookingFor",
   "mmr",
@@ -111,6 +113,11 @@ export async function PUT(request: Request, ctx: RouteContext) {
     if (update.name.trim().length > 40)
       return bad("Имя слишком длинное (до 40 символов)");
     patch.name = update.name.trim();
+  }
+
+  if ("gender" in update) {
+    if (!isGenderId(update.gender)) return bad("Выбери пол");
+    patch.gender = update.gender;
   }
 
   if ("role" in update) {

@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { likes, users } from "@/db/schema";
 import { localDayString } from "./wallet-constants";
 import { getOrCreateReferralCode } from "./wallet";
-import type { RoleId } from "./types";
+import type { GenderId, RoleId } from "./types";
 
 /** tgId демо-пользователя (текущего пользователя в режиме без бота) */
 export const DEMO_TG_ID = 777_777_777;
@@ -23,6 +23,7 @@ type DemoProfile = {
   banner: string | null;
   mmr: number;
   age: number;
+  gender: GenderId;
   profileLink: string;
   description: string;
 };
@@ -38,6 +39,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:1",
     mmr: 3200,
     age: 24,
+    gender: "male",
     profileLink: "https://ru.dotabuff.com/players/104283315",
     description: "Ищу адекватный стак для пт-драйва. Играю в основном вечерами, без токсика. Есть опыт в командных играх.",
   },
@@ -51,6 +53,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:3",
     mmr: 2100,
     age: 21,
+    gender: "female",
     profileLink: "https://stratz.com/players/128460034",
     description: "Саппорт с хорошим микро, люблю играть в пати с друзьями. Нужна компания для вечернего паба.",
   },
@@ -64,6 +67,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:4",
     mmr: 4500,
     age: 27,
+    gender: "male",
     profileLink: "https://stratz.com/players/142207840",
     description: "Мидлейнер, 10k часов. Хочу собрать команду для турниров и боевых кубков.",
   },
@@ -77,6 +81,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:3",
     mmr: 2800,
     age: 25,
+    gender: "male",
     profileLink: "https://ru.dotabuff.com/players/117838401",
     description: "Оффлейнер-инициатор. Спокойный, не флеймлю. Выходные полностью свободны.",
   },
@@ -90,6 +95,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:5",
     mmr: 3600,
     age: 22,
+    gender: "female",
     profileLink: "https://stratz.com/players/136285077",
     description: "Люблю активный роуминг с 4-й позиции. Ищу стак с микрофоном и желанием играть агрессивно.",
   },
@@ -103,6 +109,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:2",
     mmr: 5300,
     age: 29,
+    gender: "male",
     profileLink: "https://ru.dotabuff.com/players/98124509",
     description: "Керри с сильными лейт-героями. Ищу пятёрку и оффлейн для рейтинговых игр.",
   },
@@ -116,6 +123,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:2",
     mmr: 1900,
     age: 19,
+    gender: "male",
     profileLink: "https://stratz.com/players/151770284",
     description: "Начинающий мид, хочу подняться с 2к. Ищу наставника или стак похожего уровня.",
   },
@@ -129,6 +137,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:5",
     mmr: 4100,
     age: 26,
+    gender: "female",
     profileLink: "https://ru.dotabuff.com/players/122468753",
     description: "Фулл-саппорт, люблю сейв-героев. Играю каждый вечер после 20:00 МСК.",
   },
@@ -142,6 +151,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:6",
     mmr: 6100,
     age: 30,
+    gender: "male",
     profileLink: "https://stratz.com/players/105993842",
     description: "Высокий оффлейн, есть опыт в плей-офф любительских лиг. Ищу серьёзную команду.",
   },
@@ -155,6 +165,7 @@ const DEMO_PROFILES: DemoProfile[] = [
     banner: "palette:4",
     mmr: 2400,
     age: 20,
+    gender: "male",
     profileLink: "https://ru.dotabuff.com/players/139823401",
     description: "Четвёрка, сетаплю фигхты и много вордю. Заходи, если нужен весёлый паб.",
   },
@@ -182,6 +193,7 @@ export async function seedDemoProfiles(): Promise<void> {
           banner: p.banner,
           mmr: p.mmr,
           age: p.age,
+          gender: p.gender,
           profileLink: p.profileLink,
           description: p.description,
           lastName: null,
@@ -191,6 +203,14 @@ export async function seedDemoProfiles(): Promise<void> {
           onboardedAt: new Date(),
         })),
       );
+    }
+
+    // Старый демо-сид мог быть создан до появления пола в анкете.
+    for (const profile of DEMO_PROFILES) {
+      await db
+        .update(users)
+        .set({ gender: profile.gender })
+        .where(and(eq(users.tgId, profile.tgId), isNull(users.gender)));
     }
     await seedDemoWallet();
     await seedDemoMatches();

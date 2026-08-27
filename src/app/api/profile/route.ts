@@ -12,6 +12,7 @@ import { resolveUser } from "@/lib/auth";
 import { isValidAvatar, normalizeLookingFor } from "@/lib/avatars";
 import { isPaletteId } from "@/lib/banners";
 import { ROLE_IDS } from "@/lib/dota";
+import { isGenderId } from "@/lib/gender";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { REFERRAL_CODE_RE } from "@/lib/wallet-constants";
 import { checkMilestones } from "@/lib/wallet";
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_PROFILE_KEYS = [
   "name",
+  "gender",
   "role",
   "lookingFor",
   "avatarUrl",
@@ -102,6 +104,11 @@ export async function PUT(request: Request) {
     if (typeof b.name !== "string" || b.name.trim().length === 0) return bad("Укажи имя");
     if (b.name.trim().length > 40) return bad("Имя слишком длинное (до 40 символов)");
     patch.name = b.name.trim();
+  }
+
+  if ("gender" in b) {
+    if (!isGenderId(b.gender)) return bad("Выбери пол");
+    patch.gender = b.gender;
   }
 
   if ("role" in b) {

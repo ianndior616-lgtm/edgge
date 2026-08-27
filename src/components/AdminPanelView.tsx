@@ -7,6 +7,7 @@ import { CoinIcon } from "./CoinIcon";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { formatMmr, roleById } from "@/lib/dota";
+import { genderLabel } from "@/lib/gender";
 import { reportReasonLabel } from "@/lib/report-reasons";
 import type { AdminReportsResponse, AdminUsersResponse, AdminUserView, ReportView } from "@/lib/types";
 
@@ -209,6 +210,11 @@ export function AdminPanelView() {
                           {u.age}
                         </span>
                       )}
+                      {u.gender && (
+                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          {u.gender === "male" ? "♂" : "♀"}
+                        </span>
+                      )}
                       {role && (
                         <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${role.badge}`}>
                           {role.emoji} {role.label}
@@ -252,6 +258,7 @@ export function AdminPanelView() {
                   <div className="mt-3 space-y-2 border-t pt-3" style={{ borderColor: "var(--border)" }}>
                     <InfoRow label="Telegram ID" value={String(u.tgId)} />
                     <InfoRow label="Имя" value={u.name ?? "—"} />
+                    <InfoRow label="Пол" value={genderLabel(u.gender)} />
                     {u.lastName && <InfoRow label="Фамилия" value={u.lastName} />}
                     <InfoRow label="Username" value={`@${u.username ?? "нет"}`} />
                     <InfoRow

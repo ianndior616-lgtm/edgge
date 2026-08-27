@@ -5,6 +5,7 @@ import { Avatar } from "./Avatar";
 import { useTelegram } from "./TelegramProvider";
 import { bannerCss, DEFAULT_BANNER_CSS } from "@/lib/banners";
 import { formatMmr, medalForMmr, roleById } from "@/lib/dota";
+import { genderLabel } from "@/lib/gender";
 import type { PublicProfile } from "@/lib/types";
 
 export function ProfileCard({
@@ -82,6 +83,9 @@ export function ProfileCard({
               @{profile.username}
             </p>
           )}
+          <p className="mt-0.5 text-[11px] font-medium" style={{ color: "var(--muted)" }}>
+            {genderLabel(profile.gender)}
+          </p>
         </div>
         {role && (
           <span

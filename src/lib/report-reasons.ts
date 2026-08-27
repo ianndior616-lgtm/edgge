@@ -7,6 +7,7 @@ export const REPORT_REASONS: { id: ReportReason; label: string }[] = [
   { id: "insult", label: "Оскорбление" },
   { id: "unpleasant", label: "Неприятный контент" },
   { id: "politics", label: "Политика" },
+  { id: "wrong_gender", label: "Неверный пол" },
 ];
 
 export const REPORT_REASON_IDS = new Set(REPORT_REASONS.map((r) => r.id));

@@ -6,6 +6,7 @@ import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { bannerCss } from "@/lib/banners";
 import { formatMmr, medalForMmr, roleById } from "@/lib/dota";
+import { genderLabel } from "@/lib/gender";
 import { REPORT_REASONS } from "@/lib/report-reasons";
 import type {
   LikeResponse,
@@ -506,6 +507,9 @@ function CardLayer({
                 @{profile.username}
               </p>
             )}
+            <p className="truncate text-[10px] font-medium" style={{ color: "var(--muted)" }}>
+              {genderLabel(profile.gender)}
+            </p>
           </div>
         </div>
 

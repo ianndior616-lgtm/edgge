@@ -5,8 +5,14 @@ import { BannerPicker } from "./BannerPicker";
 import { useTelegram } from "./TelegramProvider";
 import { api } from "@/lib/client-api";
 import { MEDALS, ROLES, formatMmr } from "@/lib/dota";
+import { GENDERS } from "@/lib/gender";
 import { formatAvatar } from "@/lib/image-utils";
-import type { PublicProfile, RoleId, UserWithProfile } from "@/lib/types";
+import type {
+  GenderId,
+  PublicProfile,
+  RoleId,
+  UserWithProfile,
+} from "@/lib/types";
 
 const INPUT_CLS =
   "w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]";
@@ -30,6 +36,7 @@ export function OnboardingForm({
   const { initData } = useTelegram();
   const [friendCode, setFriendCode] = useState("");
   const [name, setName] = useState(initial?.name ?? firstName ?? "");
+  const [gender, setGender] = useState<GenderId | null>(initial?.gender ?? null);
   const [role, setRole] = useState<RoleId | null>(initial?.role ?? null);
   const [lookingFor, setLookingFor] = useState<RoleId[]>(initial?.lookingFor ?? []);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
@@ -82,6 +89,7 @@ export function OnboardingForm({
     const ageNum = Number(age);
 
     if (!cleanName) return setError("Укажи своё имя");
+    if (!gender) return setError("Выбери свой пол");
     if (!role) return setError("Выбери свою роль в команде");
     if (!Number.isInteger(mmrNum) || mmrNum < 0 || mmrNum > 20000)
       return setError("Укажи свой ПТС (0 – 20000)");
@@ -93,6 +101,7 @@ export function OnboardingForm({
     const friend = friendCode.trim().toUpperCase();
     const body = {
       name: cleanName,
+      gender,
       role,
       // Предпочтения можно менять в любой момент и можно очистить полностью.
       // На рекомендации они больше не влияют — там показываются все роли.
@@ -179,6 +188,29 @@ export function OnboardingForm({
       <div>
         <label className={LABEL_CLS} htmlFor="pf-name">Имя</label>
         <input id="pf-name" className={INPUT_CLS} placeholder="Как тебя зовут?" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+      </div>
+
+      <div>
+        <span className={LABEL_CLS}>Пол</span>
+        <div className="grid grid-cols-2 gap-2">
+          {GENDERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setGender(item.id);
+                setError(null);
+              }}
+              className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                gender === item.id
+                  ? "border-red-500/70 bg-red-500/15 text-white"
+                  : "border-[var(--border)] bg-[var(--surface2)] text-[var(--muted)]"
+              }`}
+            >
+              {item.id === "male" ? "♂" : "♀"} {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>

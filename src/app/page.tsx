@@ -204,7 +204,15 @@ function App() {
           </div>
           <div className="card rounded-2xl p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <OnboardingForm
-              initial={null}
+              initial={
+                me.name ||
+                me.role ||
+                me.mmr != null ||
+                me.age != null ||
+                me.profileLink
+                  ? me
+                  : null
+              }
               firstName={me.firstName}
               onSaved={handleSaved}
               onNotice={showToast}
