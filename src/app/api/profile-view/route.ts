@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-guards";
 import { resolveUser } from "@/lib/auth";
 import { recordProfileView } from "@/lib/profile-stats";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 
 export const dynamic = "force-dynamic";
 const ALLOWED_KEYS = ["tgId"] as const;
@@ -48,7 +49,10 @@ export async function POST(request: Request) {
       and(
         eq(users.tgId, tgId),
         eq(users.isActive, true),
-        isNotNull(users.username),
+        or(
+          isNotNull(users.username),
+          eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+        ),
         isNotNull(users.onboardedAt),
       ),
     )

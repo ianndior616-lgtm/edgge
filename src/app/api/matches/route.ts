@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
@@ -6,6 +6,7 @@ import { resolveUser } from "@/lib/auth";
 import { feedbackTagsFromRater } from "@/lib/feedback";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import type { MatchItem } from "@/lib/types";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 import { isUserBanned } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,15 @@ export async function GET(request: Request) {
     db
       .select()
       .from(users)
-      .where(and(inArray(users.tgId, matchIds), isNotNull(users.username))),
+      .where(
+        and(
+          inArray(users.tgId, matchIds),
+          or(
+            isNotNull(users.username),
+            eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+          ),
+        ),
+      ),
     db
       .select({ tgId: ratings.ratedTgId, stars: ratings.stars })
       .from(ratings)

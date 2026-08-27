@@ -7,7 +7,10 @@ import {
   sendStartMessage,
   tgApi,
 } from "@/lib/telegram";
-import { normalizeTelegramUsername } from "@/lib/telegram-username";
+import {
+  isTelegramUsernameOptional,
+  normalizeTelegramUsername,
+} from "@/lib/telegram-username";
 import {
   nextVipUntil,
   vipChargeAlreadyProcessed,
@@ -58,11 +61,10 @@ type TgUpdate = {
 async function upsertFromTelegram(from: TgFrom | undefined, chatId: number) {
   if (!from) return;
 
-  // /start не должен создавать анкету, с которой после мэтча нельзя будет
-  // связаться. Пользователь без @username всё равно получит кнопку приложения
-  // и увидит инструкцию в /api/auth.
+  // Обычным пользователям нужен @username для связи после мэтча. Для главного
+  // администратора действует точечное исключение по подписанному Telegram ID.
   const username = normalizeTelegramUsername(from.username);
-  if (!username) return;
+  if (!username && !isTelegramUsernameOptional(from.id)) return;
 
   try {
     await db

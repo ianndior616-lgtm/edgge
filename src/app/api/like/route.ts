@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
@@ -10,6 +10,7 @@ import {
 import { resolveUser } from "@/lib/auth";
 import { toRatedPublicProfile } from "@/lib/serialize";
 import { tgApi } from "@/lib/telegram";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 import { checkMilestones, recordSwipeActivity } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +92,10 @@ export async function POST(request: Request) {
       and(
         eq(users.tgId, tgId),
         eq(users.isActive, true),
-        isNotNull(users.username),
+        or(
+          isNotNull(users.username),
+          eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+        ),
         isNotNull(users.onboardedAt),
         isNotNull(users.gender),
       ),

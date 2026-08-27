@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { reports, users } from "@/db/schema";
@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-guards";
 import { resolveUser } from "@/lib/auth";
 import { REPORT_REASON_IDS } from "@/lib/report-reasons";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,10 @@ export async function POST(request: Request) {
     .where(
       and(
         eq(users.tgId, reportedTgId),
-        isNotNull(users.username),
+        or(
+          isNotNull(users.username),
+          eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+        ),
         isNotNull(users.onboardedAt),
       ),
     )

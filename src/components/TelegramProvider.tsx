@@ -131,7 +131,7 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
 
   const openLink = (url: string) => {
     // Контакты игроков открываются только по публичным https://t.me/... ссылкам:
-    // регистрация без @username намеренно не допускается.
+    // регистрация без @username допускается только для отдельного admin tgId.
     if (webApp?.openTelegramLink && /^https:\/\/t\.me\//i.test(url)) {
       try {
         webApp.openTelegramLink(url);

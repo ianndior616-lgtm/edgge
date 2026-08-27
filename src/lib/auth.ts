@@ -2,7 +2,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, type User } from "@/db/schema";
 import { DEMO_TG_ID, seedDemoProfiles } from "./demo";
-import { normalizeTelegramUsername } from "./telegram-username";
+import {
+  isTelegramUsernameOptional,
+  normalizeTelegramUsername,
+} from "./telegram-username";
 import { isDemoMode, validateInitData } from "./telegram";
 import { getOrCreateReferralCode, isUserBanned } from "./wallet";
 import { isConfiguredAdmin } from "./admin";
@@ -58,7 +61,11 @@ export async function resolveSession(
     demo: false,
   };
 
-  return requireUsername && !session.username ? null : session;
+  return requireUsername &&
+    !session.username &&
+    !isTelegramUsernameOptional(session.tgId)
+    ? null
+    : session;
 }
 
 /** Полная строка пользователя из БД (создаётся при первом входе). */
@@ -86,7 +93,9 @@ export async function syncTelegramIdentity(session: SessionUser): Promise<void> 
       photoUrl: session.photoUrl,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
-      ...(!username ? { isActive: false } : {}),
+      ...(!username && !isTelegramUsernameOptional(session.tgId)
+        ? { isActive: false }
+        : {}),
     })
     .where(eq(users.tgId, session.tgId));
 }
@@ -94,7 +103,7 @@ export async function syncTelegramIdentity(session: SessionUser): Promise<void> 
 /** Находит пользователя в БД или создаёт его при первом входе. */
 export async function ensureUser(session: SessionUser): Promise<User> {
   const username = normalizeTelegramUsername(session.username);
-  if (!username) {
+  if (!username && !isTelegramUsernameOptional(session.tgId)) {
     throw new Error("Telegram username is required for registration");
   }
 

@@ -5,12 +5,14 @@ import {
   inArray,
   isNotNull,
   notInArray,
+  or,
 } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
 import { resolveUser } from "@/lib/auth";
 import { toRatedPublicProfile } from "@/lib/serialize";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +48,11 @@ export async function GET(request: Request) {
         inArray(users.tgId, ids),
         notInArray(users.tgId, myReactions),
         eq(users.isActive, true),
-        // Старые записи без @username не могут попасть в ответный лайк:
-        // после мэтча с ними нельзя открыть t.me-чат.
-        isNotNull(users.username),
+        // Без @username допускается только главный администратор.
+        or(
+          isNotNull(users.username),
+          eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+        ),
         isNotNull(users.onboardedAt),
       ),
     );

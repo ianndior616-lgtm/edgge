@@ -1,4 +1,4 @@
-import { and, avg, count, eq, isNotNull } from "drizzle-orm";
+import { and, avg, count, eq, isNotNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, ratings, users } from "@/db/schema";
@@ -14,6 +14,7 @@ import {
   saveFeedbackTags,
 } from "@/lib/feedback";
 import { isUserBanned } from "@/lib/wallet";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,15 @@ export async function POST(request: Request) {
   const [target] = await db
     .select({ tgId: users.tgId })
     .from(users)
-    .where(and(eq(users.tgId, tgId), isNotNull(users.username)))
+    .where(
+      and(
+        eq(users.tgId, tgId),
+        or(
+          isNotNull(users.username),
+          eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+        ),
+      ),
+    )
     .limit(1);
   if (!target || (await isUserBanned(tgId))) {
     return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });

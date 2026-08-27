@@ -7,7 +7,10 @@ import {
 } from "@/lib/auth";
 import { toUserWithProfile, withReferralCount } from "@/lib/serialize";
 import { BOT_USERNAME } from "@/lib/telegram";
-import { TELEGRAM_USERNAME_REQUIRED_MESSAGE } from "@/lib/telegram-username";
+import {
+  isTelegramUsernameOptional,
+  TELEGRAM_USERNAME_REQUIRED_MESSAGE,
+} from "@/lib/telegram-username";
 import { isUserBanned } from "@/lib/wallet";
 import { ensureMigrationsApplied } from "@/lib/run-migrations";
 
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!session.username) {
+  if (!session.username && !isTelegramUsernameOptional(session.tgId)) {
     // Telegram подписал эти данные: если @username удалён, убираем старую
     // публичную ссылку и скрываем анкету, чтобы по ней не создавались мэтчи.
     await syncTelegramIdentity(session).catch(() => undefined);

@@ -7,12 +7,14 @@ import {
   lte,
   ne,
   notInArray,
+  or,
 } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { likes, users } from "@/db/schema";
 import { resolveUser } from "@/lib/auth";
 import { toRatedPublicProfile } from "@/lib/serialize";
+import { TELEGRAM_USERNAME_OPTIONAL_TG_ID } from "@/lib/telegram-username";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +47,10 @@ export async function GET(request: Request) {
     ne(users.tgId, currentUser.tgId),
     // В рекомендациях показываем только людей, которым действительно можно
     // написать после взаимного лайка.
-    isNotNull(users.username),
+    or(
+      isNotNull(users.username),
+      eq(users.tgId, TELEGRAM_USERNAME_OPTIONAL_TG_ID),
+    ),
     isNotNull(users.onboardedAt),
     isNotNull(users.name),
     isNotNull(users.role),
