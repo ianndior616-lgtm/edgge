@@ -201,13 +201,19 @@ export function OnboardingForm({
                 setGender(item.id);
                 setError(null);
               }}
-              className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
                 gender === item.id
                   ? "border-red-500/70 bg-red-500/15 text-white"
                   : "border-[var(--border)] bg-[var(--surface2)] text-[var(--muted)]"
               }`}
             >
-              {item.id === "male" ? "♂" : "♀"} {item.label}
+              <span
+                aria-hidden="true"
+                className="flex h-5 w-5 shrink-0 items-center justify-center text-xl leading-none"
+              >
+                {item.id === "male" ? "♂" : "♀"}
+              </span>
+              <span className="leading-none">{item.label}</span>
             </button>
           ))}
         </div>
