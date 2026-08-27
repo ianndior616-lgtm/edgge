@@ -12,11 +12,27 @@ Variables** добавьте хотя бы одну строку подключ�
 - либо `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING`, если проект подключён через
   Vercel Postgres или Neon.
 
-После добавления переменных примените схему к этой базе:
+После добавления переменных (и редеплоя) примените схему к этой базе.
+
+**Способ 1 — без CLI, прямо на задеплоенном приложении (рекомендуется):**
+
+```bash
+curl 'https://<your-domain>/api/admin/migrate?secret=<BOT_SETUP_SECRET>'
+# или заголовком: -H 'x-setup-secret: <BOT_SETUP_SECRET>'
+```
+
+Эндпоинт идемпотентен: уже применённые миграции пропускаются. Если
+`BOT_SETUP_SECRET` не задан, секрет не требуется. SQL миграций зашит в
+`src/db/migrations.ts`, поэтому на Vercel не нужен доступ к ФС.
+
+**Способ 2 — из локальной среды с доступом к базе:**
 
 ```bash
 DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require' npm run db:push
 ```
+
+> Для Neon в миграциях используйте **Direct connection** (хост без `-pooler`),
+> для Vercel Postgres — `POSTGRES_URL_NON_POOLING`.
 
 Проверить подключение после деплоя можно по адресу:
 
